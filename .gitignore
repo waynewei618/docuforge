@@ -1,0 +1,33 @@
+# Python/runtime caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local environment and secrets
+.env
+.env.*
+*.key
+
+# Local workflow state, intermediate files, and generated deliverables
+workspace/
+
+# Local paper corpus and translated PDFs
+papers/
+
+# LaTeX build byproducts that may appear outside workspace/
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+*.xdv
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
