@@ -11,22 +11,9 @@
 
 ## 环境结构
 
-- 采用「LaTeX 工具链一处共享 + 每能力一个独立 conda 环境」的结构，避免依赖互相污染，让 TeX Live 只装一份。
-- LaTeX 共享层：**官方 TeX Live 2026**，scheme-full，装于 `/data/texlive/2026`（用户态，不依赖 apt，不需要 sudo 维护）。
-  - 不装在 conda 里，也不用 apt（apt 的 TeX Live 已卸载）。理由：arXiv 论文宏包更新快，conda-forge 与 apt 都跟不上；官方 installer + `tlmgr` 可对 CTAN 任意宏包做单包增量更新。
-  - 已在 `~/.bashrc` 中将 `/data/texlive/2026/bin/x86_64-linux` 加入 `PATH`（同步加了 `MANPATH`、`INFOPATH`），所有 shell 与 conda 环境直接调用 `xelatex` / `latexmk` / `tlmgr`，无需 `conda run` 转发。
-  - 升级宏包：`tlmgr update --self --all`（首次跑前建议 `tlmgr option repository https://mirrors.tuna.tsinghua.edu.cn/CTAN/systems/texlive/tlnet/` 切到清华源）。
-  - 缺包补装：`tlmgr install <pkg>`。
-- Python 能力环境：每个能力一个独立的 conda 环境，命名风格按能力含义统一，只装该能力的 Python 依赖，不要把 TeX Live 装进任何能力环境。
-  - 当前已存在：`arxiv_translate`（arXiv 英文论文 → 中文 PDF 流水线的 Python 依赖）。
-  - 规划中：`pdf_translate`（普通 PDF 翻译）、`manuscript_to_ppt`（手稿 → PPT）等，按需创建。
-  - 不使用 venv 或系统 pip，能力环境一律走 conda。
+**结构原则**：LaTeX 工具链全机一处共享，每能力一个独立 conda 环境。
 
-## 目录与运行约定
+- **LaTeX 共享层** — 官方 installer scheme-full，装于 `/data/texlive/2026`，通过 `~/.bashrc` 加入 PATH。所有 shell 与 conda 环境直接调 `xelatex` / `latexmk` / `tlmgr`。宏包更新用 `tlmgr update --self --all`，缺包用 `tlmgr install <pkg>`。不用 apt、conda-forge、tectonic 等替代方式。
+- **Python 能力环境** — 每个能力一个独立 conda 环境，只装该能力的 Python 依赖。当前已有 `arxiv_translate`（arXiv → 中文 PDF）；规划 `pdf_translate`、`manuscript_to_ppt` 等。不使用 venv 或系统 pip。
 
-- 顶层目录约定：`docs/` 放说明文档，`workflows/` 放可复用流程代码和模板，`workspace/` 放本地运行数据和产物，`papers/` 放当前论文资料集合。
-- arXiv 英文 PDF 到中文 PDF 的运行工作区固定为 `workspace/arxiv_translation/`；输入放 `workspace/arxiv_translation/inbox/`，单篇工程放 `workspace/arxiv_translation/work/<arxiv_id>/`，最终中文 PDF 放 `workspace/arxiv_translation/outbox/`。
-- 翻译初始化和编译入口为 `workflows/arxiv_translation/scripts/translate_arxiv_pdf.py`。
-- Codex 手工翻译流水线继续保留；DeepSeek API 自动翻译入口为 `workflows/arxiv_translation/scripts/deepseek_translate_tex.py`，一键入口为 `workflows/arxiv_translation/scripts/translate_arxiv_pdf.py api-translate <pdf>`，默认读取 `DEEPSEEK_API_KEY`，不把密钥写入项目文件。
-
-> 通用的 pip / conda 包管理约定（国内源临时配置、取消代理、PyTorch 例外等）见全局 `~/.claude/CLAUDE.md` 的 `Package Installation` 章节。本项目所有能力环境（如 `arxiv_translate`）一律遵守该全局约定。
+> 通用的 pip / conda 包管理约定（国内源临时配置、取消代理等）见全局 `~/.claude/CLAUDE.md` 的 `Package Installation` 章节。
