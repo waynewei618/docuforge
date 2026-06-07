@@ -372,16 +372,17 @@ def use_existing_bbl_when_bib_missing(tex: str, source_dir: Path, main_tex: Path
         bbl_input = bbl.name
 
     replacement = "{\n\\input{" + bbl_input + "}\n}"
+    replace_fn = lambda _match: replacement
     block_re = re.compile(
         r"\{\s*\\bibliographystyle\{[^}]+\}\s*\\bibliography\{[^}]+\}\s*\}",
         flags=re.DOTALL,
     )
     if block_re.search(tex):
-        return block_re.sub(replacement, tex, count=1)
+        return block_re.sub(replace_fn, tex, count=1)
 
     return re.sub(
         r"\\bibliographystyle\{[^}]+\}\s*\\bibliography\{[^}]+\}",
-        replacement,
+        replace_fn,
         tex,
         count=1,
         flags=re.DOTALL,
