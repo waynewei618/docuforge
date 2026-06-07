@@ -47,6 +47,13 @@ MISSING_PKG_HINTS = {
     "xeCJK.sty": "sudo apt install -y texlive-xetex texlive-lang-chinese",
 }
 
+UNDEFINED_COMMAND_FALLBACKS = {
+    "acronym": (
+        "\\providecommand{\\acronym}{SceneCrafter}\n"
+        "% 译文里常见的模型名/方法名宏定义，如果你有更准确原文定义可在文档中补齐。"
+    ),
+}
+
 
 def rel(path: Path) -> str:
     try:
@@ -65,6 +72,73 @@ def run(cmd: list[str], cwd: Path | None = None, capture: bool = False) -> subpr
     if capture:
         kwargs.update({"stdout": subprocess.PIPE, "stderr": subprocess.STDOUT})
     return subprocess.run(cmd, **kwargs)
+
+
+def has_command_definition(tex: str, command: str) -> bool:
+    command = command.lstrip("\\")
+    escaped = re.escape(command)
+    patterns = [
+        rf"\\(?:newcommand|renewcommand|providecommand)\*?\s*\{{\\{escaped}\}}",
+        rf"\\DeclareRobustCommand\*?\s*\{{\\{escaped}\}}",
+        rf"\\def\\{escaped}\b",
+        rf"\\let\\{escaped}\s*=?",
+    ]
+    return any(re.search(pattern, tex, flags=re.MULTILINE) is not None for pattern in patterns)
+
+
+def inject_missing_command_fallbacks(main_tex: Path, missing_commands: list[str]) -> bool:
+    if not missing_commands:
+        return False
+    if not main_tex.exists():
+        return False
+
+    text = main_tex.read_text(encoding="utf-8", errors="replace")
+    if "\\begin{document}" not in text:
+        return False
+
+    begin_idx = text.index("\\begin{document}")
+    preamble = text[:begin_idx]
+    body = text[begin_idx:]
+    block_lines: list[str] = []
+    for command in missing_commands:
+        cmd = command.lstrip("\\")
+        if cmd in UNDEFINED_COMMAND_FALLBACKS and cmd not in {"", "begin", "end"}:
+            if not has_command_definition(text, cmd):
+                block_lines.append(UNDEFINED_COMMAND_FALLBACKS[cmd])
+
+    if not block_lines:
+        return False
+
+    fallback_block = "\n\n% Auto fallback: keep compileable for translated control sequences.\n" + "\n".join(block_lines) + "\n"
+    updated = preamble.rstrip() + fallback_block + body
+    main_tex.write_text(updated, encoding="utf-8")
+    return True
+
+
+def normalize_cjk_adjacent_macros(tex_root: Path, commands: list[str]) -> bool:
+    if not commands:
+        return False
+
+    changed = False
+    for path in sorted(tex_root.glob("**/*.tex")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        fixed = text
+        for command in commands:
+            cmd = command.lstrip("\\")
+            if not cmd or cmd in {"begin", "end"}:
+                continue
+            # 在 XeTeX + CJK 组合下，中文字符可能会被当作命令后续字符，导致 \macro中文 解析失败。
+            # 在 `\macro中文` 和 `\macro\中文` 两种常见形态下都补齐空参数。
+            pattern = re.compile(rf"\\{re.escape(cmd)}(?=[\u4e00-\u9fff])")
+            fixed = pattern.sub(rf"\\{cmd}{{}}", fixed)
+            pattern = re.compile(rf"\\{re.escape(cmd)}\\(?=[\u4e00-\u9fff])")
+            fixed = pattern.sub(rf"\\{cmd}{{}}", fixed)
+
+        if fixed != text:
+            path.write_text(fixed, encoding="utf-8")
+            changed = True
+
+    return changed
 
 
 def arxiv_id_from_name(path: Path) -> str | None:
@@ -725,8 +799,8 @@ def summarize_latex_failures(log_path: Path) -> None:
             missing_files.append(next(name for name in missing_match.groups() if name))
 
         if "Undefined control sequence." in line:
-            for j in range(idx + 1, min(idx + 4, len(lines))):
-                next_match = re.search(r"(\\[A-Za-z@]+)", lines[j])
+            for j in range(idx, min(idx + 6, len(lines))):
+                next_match = re.search(r"(\\[A-Za-z@]+)(?=[^A-Za-z@]|$)", lines[j])
                 if next_match:
                     missing_commands.append(next_match.group(1))
                     break
@@ -769,10 +843,10 @@ def parse_latex_failures(log_path: Path) -> tuple[list[str], list[str], bool, li
             missing_files.append(next(name for name in missing_match.groups() if name))
 
         if "Undefined control sequence." in line:
-            for j in range(idx + 1, min(idx + 4, len(lines))):
-                next_match = re.search(r"(\\[A-Za-z@]+)", lines[j])
-                if next_match:
-                    missing_commands.append(next_match.group(1))
+            for j in range(idx, min(idx + 6, len(lines))):
+                match = re.search(r"\\([A-Za-z@]+)(?=[^A-Za-z@]|$)", lines[j])
+                if match:
+                    missing_commands.append("\\" + match.group(1))
                     break
 
         glyph_match = re.search(r"Cannot use XeTeXglyph with (.+); not a native platform font\.", line)
@@ -784,7 +858,7 @@ def parse_latex_failures(log_path: Path) -> tuple[list[str], list[str], bool, li
 
 
 def apply_auto_fallbacks_from_log(log_path: Path, zh: Path) -> bool:
-    missing_files, _, has_xelatex_glyph_error, _ = parse_latex_failures(log_path)
+    missing_files, missing_commands, has_xelatex_glyph_error, _ = parse_latex_failures(log_path)
     changed = False
 
     if any(item in {"ifsym.sty", "bbm.sty"} for item in missing_files):
@@ -798,6 +872,18 @@ def apply_auto_fallbacks_from_log(log_path: Path, zh: Path) -> bool:
         if normalized:
             print("[build] 检测到 XeTeXglyph 兼容报错，已为可选编码包添加 XeLaTeX 兼容注释", flush=True)
             changed = True
+
+    if missing_commands:
+        main = sorted(zh.glob("main*.tex"))
+        if main:
+            fallback_injected = inject_missing_command_fallbacks(main[0], missing_commands)
+            if fallback_injected:
+                print(f"[build] 已注入未定义命令兼容定义：{', '.join(missing_commands)}", flush=True)
+                changed = True
+            boundary_fixed = normalize_cjk_adjacent_macros(zh, missing_commands)
+            if boundary_fixed:
+                print(f"[build] 已修复中文相邻命令边界：{', '.join(missing_commands)}", flush=True)
+                changed = True
 
     if not changed and not missing_files and not has_xelatex_glyph_error:
         return False

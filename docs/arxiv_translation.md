@@ -175,6 +175,8 @@ conda run -n paper_translate python workflows/arxiv_translation/scripts/deepseek
 - `\usepackage{ifsym}`：若本机没有 `ifsym.sty`，自动插入最小兼容符号定义（如 `\Letter`）以避免单命令中断。
 - `\usepackage{bbm}`：若缺失会退化为 `\mathbb` 的兼容定义。
 - `\usepackage{inputenc}` / `\usepackage{fontenc}`：当 XeLaTeX 编译触发兼容性报错时，自动改为注释该类行，改由 `fontspec/xeCJK` 接管编码与字体。
+- `Undefined control sequence`：若日志内出现未定义命令，且命中白名单（当前包含 `\acronym`），则自动在 `main_zh.tex` 中注入 `\providecommand` 兼容定义后重试，保证不中断单篇编译。
+- `\macro中文` 相邻命令边界：若译文里出现 `\acronym中文` 或 `\acronym\中文`，自动改写为 `\acronym{}`，避免 XeTeX 在中文上下文下误解析控制序列导致编译中断。该修复与降级宏定义配套，优先执行且不影响公式/引用。
 - 若仍有未定义命令/宏包，构建失败时会附带提示并建议补齐对应环境。
 - 构建会先尝试一次标准编译，若日志里命中可恢复问题（如缺少 `ifsym`/`bbm` 或已知 XeLaTeX 兼容性问题）会自动打补丁并重试一次编译。
 
@@ -183,6 +185,21 @@ conda run -n paper_translate python workflows/arxiv_translation/scripts/deepseek
 ```bash
 python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py build 2502.13144
 ```
+
+如果遇到 `\acronym` 等译文宏未定义，也会自动打补丁示例：
+
+```bash
+python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py build 2503.18108
+```
+
+当日志包含 `Undefined control sequence` 时，脚本会输出：
+
+```text
+[build] 已注入未定义命令兼容定义：\\acronym
+[build] 已修复中文相邻命令边界：\\acronym
+```
+
+然后继续执行第二轮编译。
 
 DeepSeek 的系统提示词保存在：
 
