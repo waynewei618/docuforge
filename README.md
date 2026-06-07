@@ -84,4 +84,4 @@ workspace/arxiv_translation/outbox/<arxiv_id>_zh.pdf
 - LaTeX 工具链：官方 TeX Live 2026 (`scheme-full`)，装于 `/data/texlive/2026`，通过 `~/.bashrc` 加入 `PATH`；所有 conda 环境直接调用 `xelatex` / `latexmk` / `tlmgr`。不使用 apt 版 TeX Live，不在 conda 环境里装 tectonic 或 texlive。详见 [LaTeX 环境配置](docs/latex_guide.md#本项目-latex-环境配置)。
 - Python 能力环境：每能力一个独立 conda 环境，只装该能力的 Python 依赖。当前已有 `arxiv_translate`（arXiv 论文 → 中文 PDF）。
 - 不把 API key 写入项目文件；DeepSeek 默认读取 `DEEPSEEK_API_KEY`。
-- pip/conda 国内源只在单条命令中临时指定，不配置全局源；LaTeX 宏包用 `tlmgr install` / `tlmgr update --self --all` 维护。
+- LaTeX 宏包用 `tlmgr install <pkg>` / `tlmgr update --self --all` 维护。通用的 pip / conda 包管理约定（国内源临时配置、取消代理等）见全局 agent 规则。

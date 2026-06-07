@@ -29,21 +29,4 @@
 - 翻译初始化和编译入口为 `workflows/arxiv_translation/scripts/translate_arxiv_pdf.py`。
 - Codex 手工翻译流水线继续保留；DeepSeek API 自动翻译入口为 `workflows/arxiv_translation/scripts/deepseek_translate_tex.py`，一键入口为 `workflows/arxiv_translation/scripts/translate_arxiv_pdf.py api-translate <pdf>`，默认读取 `DEEPSEEK_API_KEY`，不把密钥写入项目文件。
 
-## 包管理约定
-
-- `pip` 和 `conda` 不要写入全局国内源配置；需要国内源时仅在单条命令中临时指定，并取消代理环境变量。
-- 临时 pip 国内源示例（以 `arxiv_translate` 为例，其他能力环境同理替换环境名）：
-  ```bash
-  env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
-    conda run -n arxiv_translate python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple <package>
-  ```
-- 临时 conda 国内源示例：
-  ```bash
-  env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
-    conda install -n arxiv_translate --override-channels \
-    -c https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main \
-    -c https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/r \
-    <package>
-  ```
-- 安装 PyTorch 等命令中明确指定外部下载地址的包时，可以按需保留或临时设置代理。
-- LaTeX 宏包用 `tlmgr install <pkg>` / `tlmgr update --self --all` 维护，不通过 conda/pip 安装。
+> 通用的 pip / conda 包管理约定（国内源临时配置、取消代理、PyTorch 例外等）见全局 `~/.claude/CLAUDE.md` 的 `Package Installation` 章节。本项目所有能力环境（如 `arxiv_translate`）一律遵守该全局约定。
