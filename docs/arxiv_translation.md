@@ -167,6 +167,22 @@ conda run -n paper_translate python workflows/arxiv_translation/scripts/deepseek
 - 改写前把原 TeX 备份到 `workspace/arxiv_translation/work/<arxiv_id>/api_backups/<timestamp>/`；
 - API 调用日志写入 `workspace/arxiv_translation/work/<arxiv_id>/notes/deepseek_translation_log.jsonl`；
 - 加 `--build` 后复用 `translate_arxiv_pdf.py build`，中文 PDF 仍会放入 `workspace/arxiv_translation/outbox/` 并复制回源 PDF 同目录。
+- 编译时如遇缺失宏包文件，会输出可直接安装建议（例如 `texlive-fonts-extra`、`texlive-science`、`texlive-latex-extra`）。
+- 遇到可恢复缺口（如 `ifsym.sty`、`bbm.sty`、`fontenc/inputenc` 兼容问题）会先做降级补丁并重试；仍失败时输出失败日志中的缺失文件与安装建议。
+
+自动降级策略（不显著影响成品）：
+
+- `\usepackage{ifsym}`：若本机没有 `ifsym.sty`，自动插入最小兼容符号定义（如 `\Letter`）以避免单命令中断。
+- `\usepackage{bbm}`：若缺失会退化为 `\mathbb` 的兼容定义。
+- `\usepackage{inputenc}` / `\usepackage{fontenc}`：当 XeLaTeX 编译触发兼容性报错时，自动改为注释该类行，改由 `fontspec/xeCJK` 接管编码与字体。
+- 若仍有未定义命令/宏包，构建失败时会附带提示并建议补齐对应环境。
+- 构建会先尝试一次标准编译，若日志里命中可恢复问题（如缺少 `ifsym`/`bbm` 或已知 XeLaTeX 兼容性问题）会自动打补丁并重试一次编译。
+
+示例（缺包降级编译）：
+
+```bash
+python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py build 2502.13144
+```
 
 DeepSeek 的系统提示词保存在：
 

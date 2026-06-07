@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import os
 import json
 import re
 import shutil
@@ -23,6 +24,29 @@ OUTBOX = WORKSPACE_ROOT / "outbox"
 TEMPLATE_RULES = WORKFLOW_ROOT / "templates" / "translation_rules.md"
 UNPUBLISHED_DIR_NAME = "未查到正式发表信息"
 
+IFSYM_FALLBACK = r"""\IfFileExists{ifsym.sty}{\usepackage[misc]{ifsym}}{%
+% Auto fallback for missing ifsym.sty: keep compileable in environments without ifsym.
+  \providecommand{\Letter}{\ensuremath{\star}}
+  \providecommand{\Square}{\ensuremath{\square}}
+  \providecommand{\Circle}{\ensuremath{\bullet}}
+  \providecommand{\CIRCLE}{\ensuremath{\bullet}}
+  \providecommand{\Diamondsuit}{\diamond}
+  \providecommand{\X}{\times}
+}"""
+
+XELATEX_ENCODING_FALLBACK = (
+    "% {line}\n"
+    "% Auto XeLaTeX compatibility: legacy utf8/font encoding packages are unnecessary."
+)
+
+MISSING_PKG_HINTS = {
+    "bbm.sty": "sudo apt install -y texlive-fonts-extra",
+    "ifsym.sty": "sudo apt install -y texlive-science texlive-latex-extra",
+    "xcolor.sty": "sudo apt install -y texlive-latex-recommended",
+    "ctex.sty": "sudo apt install -y texlive-lang-chinese texlive-latex-extra",
+    "xeCJK.sty": "sudo apt install -y texlive-xetex texlive-lang-chinese",
+}
+
 
 def rel(path: Path) -> str:
     try:
@@ -31,15 +55,16 @@ def rel(path: Path) -> str:
         return str(path)
 
 
-def run(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        cmd,
-        cwd=cwd,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        check=True,
-    )
+def run(cmd: list[str], cwd: Path | None = None, capture: bool = False) -> subprocess.CompletedProcess[str]:
+    print(f"[cmd] {' '.join(cmd)}", flush=True)
+    kwargs = {
+        "cwd": cwd,
+        "text": True,
+        "check": True,
+    }
+    if capture:
+        kwargs.update({"stdout": subprocess.PIPE, "stderr": subprocess.STDOUT})
+    return subprocess.run(cmd, **kwargs)
 
 
 def arxiv_id_from_name(path: Path) -> str | None:
@@ -127,6 +152,38 @@ def find_main_tex(source_dir: Path) -> Path | None:
     return scored[0][1]
 
 
+def normalize_optional_packages(tex: str) -> str:
+    tex = re.sub(
+        r"(?m)^(?!\s*%)\\usepackage(?:\[[^]]*\])?\{ifsym\}\s*$",
+        lambda _match: IFSYM_FALLBACK,
+        tex,
+    )
+    tex = re.sub(
+        r"(?m)^(?!\s*%)\\usepackage\{bbm\}\s*$",
+        lambda _match: r"% \usepackage{bbm}\n\providecommand{\mathbbm}[1]{\mathbb{#1}}",
+        tex,
+    )
+    return tex
+
+
+def normalize_xelatex_encoding(tex: str) -> str:
+    tex = re.sub(
+        r"(?m)^(?!\s*%)\\usepackage\[[^]]*\]\{inputenc\}\s*(%.*)?$",
+        lambda m: XELATEX_ENCODING_FALLBACK.format(
+            line=m.group(0).strip() + " (已在 XeLaTeX 下注释以兼容中文字体栈)"
+        ),
+        tex,
+    )
+    tex = re.sub(
+        r"(?m)^(?!\s*%)\\usepackage(?:\[[^]]*\])?\{fontenc\}\s*(%.*)?$",
+        lambda m: XELATEX_ENCODING_FALLBACK.format(
+            line=m.group(0).strip() + " (已在 XeLaTeX 下注释以兼容中文字体栈)"
+        ),
+        tex,
+    )
+    return tex
+
+
 def inject_chinese_preamble(tex: str) -> str:
     if r"\usepackage" in tex and "ctex" in tex:
         return tex
@@ -147,7 +204,22 @@ def inject_chinese_preamble(tex: str) -> str:
     )
     cjk = "\n".join(cjk_lines)
     pattern = re.compile(r"^(?!\s*%)(.*\\documentclass(?:\[[^\]]*\])?\{[^}]+\}.*)$", re.MULTILINE)
-    return pattern.sub(lambda match: match.group(1) + "\n" + cjk, tex, count=1)
+    return pattern.sub(
+        lambda match: match.group(1) + "\n" + cjk,
+        normalize_xelatex_encoding(normalize_optional_packages(tex)),
+        count=1,
+    )
+
+
+def normalize_optional_packages_in_dir(tex_root: Path) -> int:
+    updated = 0
+    for path in sorted(tex_root.rglob("*.tex")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        normalized = normalize_xelatex_encoding(normalize_optional_packages(text))
+        if normalized != text:
+            path.write_text(normalized, encoding="utf-8")
+            updated += 1
+    return updated
 
 
 def use_existing_bbl_when_bib_missing(tex: str, source_dir: Path, main_tex: Path) -> str:
@@ -223,7 +295,9 @@ def download_arxiv_source(arxiv_id: str, archive: Path) -> bool:
                 [
                     "curl",
                     "-L",
+                    "-sS",
                     "--fail",
+                    "--show-error",
                     "--retry",
                     "2",
                     "--connect-timeout",
@@ -233,13 +307,14 @@ def download_arxiv_source(arxiv_id: str, archive: Path) -> bool:
                     "-A",
                     "paper-translate/0.1",
                     "-o",
-                    str(archive),
+                str(archive),
                     url,
                 ]
             )
             return archive.exists() and archive.stat().st_size > 0
         except subprocess.CalledProcessError as exc:
-            print(f"[warn] arXiv 源码 curl 下载失败：{exc.stdout.strip()}")
+            detail = (exc.stdout or "").strip()
+            print(f"[warn] arXiv 源码 curl 下载失败：{detail}")
             archive.unlink(missing_ok=True)
 
     req = urllib.request.Request(url, headers={"User-Agent": "paper-translate/0.1"})
@@ -261,7 +336,9 @@ def download_arxiv_pdf(arxiv_id: str, out_pdf: Path) -> bool:
                 [
                     "curl",
                     "-L",
+                    "-sS",
                     "--fail",
+                    "--show-error",
                     "--retry",
                     "2",
                     "--connect-timeout",
@@ -277,7 +354,8 @@ def download_arxiv_pdf(arxiv_id: str, out_pdf: Path) -> bool:
             )
             return out_pdf.exists() and out_pdf.stat().st_size > 0
         except subprocess.CalledProcessError as exc:
-            print(f"[warn] arXiv PDF curl 下载失败：{exc.stdout.strip()}")
+            detail = (exc.stdout or "").strip()
+            print(f"[warn] arXiv PDF curl 下载失败：{detail}")
             out_pdf.unlink(missing_ok=True)
 
     req = urllib.request.Request(url, headers={"User-Agent": "paper-translate/0.1"})
@@ -299,7 +377,8 @@ def extract_pdf_text(pdf: Path, out_txt: Path) -> bool:
         run(["pdftotext", "-layout", str(pdf), str(out_txt)])
         return True
     except subprocess.CalledProcessError as exc:
-        print(exc.stdout)
+        detail = (exc.stdout or "").strip()
+        print(f"[warn] pdftotext 提取失败：{detail}", flush=True)
         return False
 
 
@@ -345,10 +424,12 @@ def prepare(args: argparse.Namespace) -> None:
         raise SystemExit(f"输入 PDF 不存在：{pdf}")
 
     work_id = safe_work_id(pdf, args.arxiv_id)
+    print(f"[prepare] 开始处理: {work_id}", flush=True)
     work = WORK_ROOT / work_id
     if work.exists() and not args.force:
         raise SystemExit(f"工作目录已存在，拒绝覆盖：{work}\n如需重建，请显式添加 --force。")
     if work.exists() and args.force:
+        print(f"[prepare] 重建工作目录: {rel(work)}", flush=True)
         shutil.rmtree(work)
 
     notes = work / "notes"
@@ -356,36 +437,51 @@ def prepare(args: argparse.Namespace) -> None:
     zh = work / "zh"
     for path in [INBOX, OUTBOX, work, notes, zh]:
         path.mkdir(parents=True, exist_ok=True)
+    print(f"[prepare] 已初始化目录: {rel(work)}", flush=True)
 
     inbox_pdf = INBOX / pdf.name
     work_pdf = work / "input.pdf"
     if pdf.resolve() != inbox_pdf.resolve():
         shutil.copy2(pdf, inbox_pdf)
+        print(f"[prepare] 复制输入 PDF 到 inbox: {rel(inbox_pdf)}", flush=True)
     shutil.copy2(pdf, work_pdf)
+    print(f"[prepare] 复制输入 PDF 到工作目录: {rel(work_pdf)}", flush=True)
 
     source_status = "not_requested"
     archive = work / "e-print.tar.gz"
     main_tex: Path | None = None
     if args.download_source and re.fullmatch(r"\d{4}\.\d{4,5}", work_id):
+        print(f"[prepare] 尝试下载 arXiv 源码: {work_id}", flush=True)
         if download_arxiv_source(work_id, archive):
             extract_source_archive(archive, source)
             source_status = "downloaded"
             main_tex = find_main_tex(source)
+            print(f"[prepare] 源码下载/解压完成: {rel(archive)}", flush=True)
         else:
             source_status = "download_failed"
+            print("[prepare] arXiv 源码下载失败，将使用 PDF 抽取", flush=True)
 
     extracted_txt = work / "extracted.txt"
     extracted = False
     if main_tex is None:
         extracted = extract_pdf_text(work_pdf, extracted_txt)
+        if extracted:
+            print(f"[prepare] 已提取 PDF 文本: {rel(extracted_txt)}", flush=True)
+        else:
+            print("[prepare] PDF 文本提取失败或不可用", flush=True)
 
     if main_tex is not None:
+        print(f"[prepare] 检测到主 TeX: {rel(main_tex)}", flush=True)
         copy_source_tree(source, zh)
+        updated = normalize_optional_packages_in_dir(zh)
+        if updated:
+            print(f"[prepare] 已注入可选包降级兼容：{updated} 个 TeX 文件", flush=True)
         zh_main = zh / "main_zh.tex"
         seed = main_tex.read_text(encoding="utf-8", errors="replace")
         seed = use_existing_bbl_when_bib_missing(seed, source, main_tex)
         zh_main.write_text(inject_chinese_preamble(seed), encoding="utf-8")
     else:
+        print("[prepare] 未检测到主 TeX，使用降级模板", flush=True)
         zh_main = zh / "main_zh.tex"
         zh_main.write_text(
             "\n".join(
@@ -447,9 +543,9 @@ def prepare(args: argparse.Namespace) -> None:
         },
     )
 
-    print(f"prepared: {rel(work)}")
-    print(f"translate: {rel(zh_main)}")
-    print(f"rules: {rel(notes / 'translation_rules.md')}")
+    print(f"[prepare] 已准备完成: {rel(work)}", flush=True)
+    print(f"[prepare] 主中文 TeX: {rel(zh_main)}", flush=True)
+    print(f"[prepare] 规则文件: {rel(notes / 'translation_rules.md')}", flush=True)
 
 
 def prepare_batch(args: argparse.Namespace) -> None:
@@ -504,6 +600,7 @@ def api_translate(args: argparse.Namespace) -> None:
 
     work_id = safe_work_id(pdf, args.arxiv_id)
     work = WORK_ROOT / work_id
+    print(f"[api] 任务开始: {work_id}", flush=True)
     if work.exists():
         if not args.reuse_work and not args.force_prepare:
             raise SystemExit(
@@ -511,6 +608,7 @@ def api_translate(args: argparse.Namespace) -> None:
                 "如需沿用现有工作目录，请添加 --reuse-work；如需重建，请添加 --force-prepare。"
             )
         if args.force_prepare:
+            print("[api] 检测到 --force-prepare，重建工作目录", flush=True)
             prepare(
                 argparse.Namespace(
                     pdf=str(pdf),
@@ -519,7 +617,10 @@ def api_translate(args: argparse.Namespace) -> None:
                     force=True,
                 )
             )
+        else:
+            print(f"[api] 使用现有工作目录: {rel(work)}", flush=True)
     else:
+        print(f"[api] 未检测到工作目录，执行 prepare: {rel(work)}", flush=True)
         prepare(
             argparse.Namespace(
                 pdf=str(pdf),
@@ -531,6 +632,7 @@ def api_translate(args: argparse.Namespace) -> None:
 
     cmd = [
         "python",
+        "-u",
         str(WORKFLOW_ROOT / "scripts" / "deepseek_translate_tex.py"),
         "translate",
         work_id,
@@ -547,6 +649,14 @@ def api_translate(args: argparse.Namespace) -> None:
         cmd.append("--force")
     if args.limit_chunks is not None:
         cmd.extend(["--limit-chunks", str(args.limit_chunks)])
+    if args.timeout is not None:
+        cmd.extend(["--timeout", str(args.timeout)])
+    if args.retries is not None:
+        cmd.extend(["--retries", str(args.retries)])
+    if args.sleep > 0:
+        cmd.extend(["--sleep", str(args.sleep)])
+    if args.max_tokens is not None:
+        cmd.extend(["--max-tokens", str(args.max_tokens)])
     if args.model:
         cmd.extend(["--model", args.model])
     if args.base_url:
@@ -554,7 +664,18 @@ def api_translate(args: argparse.Namespace) -> None:
     if args.temperature is not None:
         cmd.extend(["--temperature", str(args.temperature)])
 
-    subprocess.run(cmd, cwd=PROJECT_ROOT, check=True)
+    print(f"[api] 调用翻译器: {' '.join(cmd)}", flush=True)
+    result = subprocess.run(
+        cmd,
+        cwd=PROJECT_ROOT,
+        env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        check=False,
+    )
+    if result.returncode != 0:
+        raise SystemExit(
+            "[api] 翻译器执行失败，返回码="
+            f"{result.returncode}。请先确保 DEEPSEEK_API_KEY 已通过 .bashrc 或 --api-key 提供。"
+        )
 
 
 def resolve_output_dir(output_dir: str | None) -> Path:
@@ -586,6 +707,115 @@ def ensure_english_pdf(arxiv_id: str, output_dir: Path, force_download: bool) ->
     return source_pdf, english_out
 
 
+def summarize_latex_failures(log_path: Path) -> None:
+    if not log_path.exists():
+        print(f"[build] 编译日志未生成：{rel(log_path)}")
+        return
+
+    lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    missing_files = []
+    missing_commands = []
+
+    for idx, line in enumerate(lines):
+        missing_match = re.search(
+            r"^!?\s*(?:LaTeX Error: File `([^']+)'\s*not found\.|I can't find file `([^']+)'\.)$",
+            line,
+        )
+        if missing_match:
+            missing_files.append(next(name for name in missing_match.groups() if name))
+
+        if "Undefined control sequence." in line:
+            for j in range(idx + 1, min(idx + 4, len(lines))):
+                next_match = re.search(r"(\\[A-Za-z@]+)", lines[j])
+                if next_match:
+                    missing_commands.append(next_match.group(1))
+                    break
+
+    if missing_files:
+        print("[build] 检测到缺失宏包文件:")
+        for item in sorted(set(missing_files)):
+            msg = MISSING_PKG_HINTS.get(item, "")
+            if msg:
+                print(f"  - {item}（建议执行: {msg}）")
+            else:
+                print(f"  - {item}")
+
+    if missing_commands:
+        print("[build] 检测到未定义命令:")
+        for item in sorted(set(missing_commands)):
+            print(f"  - {item}")
+
+    if not missing_files and not missing_commands:
+        tail = "\n".join(lines[-30:])
+        print(f"[build] LaTeX 失败片段（最近 30 行）:\n{tail}")
+
+
+def parse_latex_failures(log_path: Path) -> tuple[list[str], list[str], bool, list[str]]:
+    if not log_path.exists():
+        return [], [], False, []
+
+    lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    missing_files = []
+    missing_commands = []
+    has_xelatex_glyph_error = False
+    glyph_fonts: list[str] = []
+
+    for idx, line in enumerate(lines):
+        missing_match = re.search(
+            r"^!?\s*(?:LaTeX Error: File `([^']+)'\s*not found\.|I can't find file `([^']+)'\.)$",
+            line,
+        )
+        if missing_match:
+            missing_files.append(next(name for name in missing_match.groups() if name))
+
+        if "Undefined control sequence." in line:
+            for j in range(idx + 1, min(idx + 4, len(lines))):
+                next_match = re.search(r"(\\[A-Za-z@]+)", lines[j])
+                if next_match:
+                    missing_commands.append(next_match.group(1))
+                    break
+
+        glyph_match = re.search(r"Cannot use XeTeXglyph with (.+); not a native platform font\.", line)
+        if glyph_match:
+            has_xelatex_glyph_error = True
+            glyph_fonts.append(glyph_match.group(1).strip())
+
+    return sorted(set(missing_files)), sorted(set(missing_commands)), has_xelatex_glyph_error, sorted(set(glyph_fonts))
+
+
+def apply_auto_fallbacks_from_log(log_path: Path, zh: Path) -> bool:
+    missing_files, _, has_xelatex_glyph_error, _ = parse_latex_failures(log_path)
+    changed = False
+
+    if any(item in {"ifsym.sty", "bbm.sty"} for item in missing_files):
+        normalized = normalize_optional_packages_in_dir(zh)
+        if normalized:
+            print(f"[build] 已应用缺失可选包兼容补丁：{normalized} 个 TeX 文件", flush=True)
+            changed = True
+
+    if has_xelatex_glyph_error:
+        normalized = normalize_optional_packages_in_dir(zh)
+        if normalized:
+            print("[build] 检测到 XeTeXglyph 兼容报错，已为可选编码包添加 XeLaTeX 兼容注释", flush=True)
+            changed = True
+
+    if not changed and not missing_files and not has_xelatex_glyph_error:
+        return False
+    if changed:
+        return True
+
+    for item in missing_files:
+        msg = MISSING_PKG_HINTS.get(item)
+        if msg:
+            print(f"[build] 该缺失宏包可通过安装补齐（{item}）：{msg}")
+    if has_xelatex_glyph_error:
+        print(
+            "[build] 未检测到可自动修复的 XeTeXglyph 兼容写法；建议检查字体宏包或参考 docs/arxiv_translation.md",
+            flush=True,
+        )
+    return False
+
+
 def translate_id(args: argparse.Namespace) -> None:
     arxiv_id = normalize_arxiv_id(args.arxiv_id)
     output_dir = resolve_output_dir(args.output_dir)
@@ -612,6 +842,10 @@ def translate_id(args: argparse.Namespace) -> None:
                 model=args.model,
                 base_url=args.base_url,
                 temperature=args.temperature,
+                timeout=args.timeout,
+                retries=args.retries,
+                sleep=args.sleep,
+                max_tokens=args.max_tokens,
             )
         )
     else:
@@ -644,23 +878,50 @@ def build(args: argparse.Namespace) -> None:
     tex = zh / args.main
     if not tex.exists():
         raise SystemExit(f"中文 TeX 不存在：{tex}")
-    build_dir = work / "build_zh"
-    build_dir.mkdir(parents=True, exist_ok=True)
 
-    try:
-        run(
-            [
-                "latexmk",
-                "-xelatex",
-                "-interaction=nonstopmode",
-                "-halt-on-error",
-                f"-outdir={build_dir.resolve()}",
-                tex.name,
-            ],
-            cwd=zh,
-        )
-    except subprocess.CalledProcessError as exc:
-        print(exc.stdout)
+    updated = normalize_optional_packages_in_dir(zh)
+    if updated:
+        print(f"[build] 已补齐可选包兼容写法：{updated} 个 TeX 文件", flush=True)
+    build_dir = work / "build_zh"
+    print(f"[build] 开始编译: {rel(tex)}", flush=True)
+    print(f"[build] 输出目录: {rel(build_dir)}", flush=True)
+
+    max_attempts = 2
+    last_exc: subprocess.CalledProcessError | None = None
+    for attempt in range(1, max_attempts + 1):
+        if build_dir.exists():
+            shutil.rmtree(build_dir)
+        build_dir.mkdir(parents=True, exist_ok=True)
+
+        if attempt > 1:
+            print(f"[build] 第 {attempt} 次重试编译: {rel(tex)}", flush=True)
+
+        try:
+            run(
+                [
+                    "latexmk",
+                    "-xelatex",
+                    "-interaction=nonstopmode",
+                    "-halt-on-error",
+                    f"-outdir={build_dir.resolve()}",
+                    tex.name,
+                ],
+                cwd=zh,
+            )
+            break
+        except subprocess.CalledProcessError as exc:
+            last_exc = exc
+            detail = (exc.stdout or "").strip()
+            log_path = build_dir / f"{tex.stem}.log"
+            print(f"[build] 中文 PDF 编译失败（第 {attempt} 次）: {detail}", flush=True)
+
+            summarize_latex_failures(log_path)
+            if attempt < max_attempts and apply_auto_fallbacks_from_log(log_path, zh):
+                print("[build] 已应用可恢复补丁，尝试继续编译", flush=True)
+                continue
+            break
+
+    if last_exc is not None:
         raise SystemExit("中文 PDF 编译失败")
 
     pdf = build_dir / f"{tex.stem}.pdf"
@@ -670,6 +931,7 @@ def build(args: argparse.Namespace) -> None:
     out_tex = OUTBOX / f"{work_id}_zh.tex"
     shutil.copy2(pdf, out_pdf)
     shutil.copy2(tex, out_tex)
+    print(f"[build] 复制产物到: {rel(out_pdf)}", flush=True)
     source_pdf = find_source_pdf(work_id)
     source_side_pdf = None
     if source_pdf is not None:
@@ -708,7 +970,7 @@ def doctor(_: argparse.Namespace) -> None:
     if shutil.which("kpsewhich"):
         for item in ["ctex.sty", "xeCJK.sty"]:
             try:
-                found = run(["kpsewhich", item]).stdout.strip()
+                found = run(["kpsewhich", item], capture=True).stdout.strip()
             except subprocess.CalledProcessError:
                 found = "missing"
             print(f"{item}: {found or 'missing'}")
@@ -756,6 +1018,10 @@ def main() -> None:
     p_api.add_argument("--model", help="DeepSeek model, e.g. deepseek-v4-flash or deepseek-v4-pro")
     p_api.add_argument("--base-url", help="DeepSeek-compatible API base URL")
     p_api.add_argument("--temperature", type=float, help="DeepSeek sampling temperature")
+    p_api.add_argument("--timeout", type=int, default=120, help="DeepSeek API timeout seconds (default: 120)")
+    p_api.add_argument("--retries", type=int, default=3, help="DeepSeek API retry times (default: 3)")
+    p_api.add_argument("--sleep", type=float, default=0.0, help="sleep seconds between API calls")
+    p_api.add_argument("--max-tokens", type=int, help="max output tokens for DeepSeek")
     p_api.set_defaults(func=api_translate, download_source=True)
 
     p_translate_id = sub.add_parser(
@@ -775,6 +1041,10 @@ def main() -> None:
     p_translate_id.add_argument("--model", help="DeepSeek model, e.g. deepseek-v4-flash or deepseek-v4-pro")
     p_translate_id.add_argument("--base-url", help="DeepSeek-compatible API base URL")
     p_translate_id.add_argument("--temperature", type=float, help="DeepSeek sampling temperature")
+    p_translate_id.add_argument("--timeout", type=int, default=120, help="DeepSeek API timeout seconds (default: 120)")
+    p_translate_id.add_argument("--retries", type=int, default=3, help="DeepSeek API retry times (default: 3)")
+    p_translate_id.add_argument("--sleep", type=float, default=0.0, help="sleep seconds between API calls")
+    p_translate_id.add_argument("--max-tokens", type=int, help="max output tokens for DeepSeek")
     p_translate_id.add_argument("--json", action="store_true", help="print machine-readable paths")
     p_translate_id.set_defaults(func=translate_id, download_source=True)
 
