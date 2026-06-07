@@ -42,17 +42,68 @@ XELATEX_ENCODING_FALLBACK = (
 MISSING_PKG_HINTS = {
     "bbm.sty": "sudo apt install -y texlive-fonts-extra",
     "ifsym.sty": "sudo apt install -y texlive-science texlive-latex-extra",
+    "bbding.sty": "sudo apt install -y texlive-latex-extra",
     "xcolor.sty": "sudo apt install -y texlive-latex-recommended",
     "ctex.sty": "sudo apt install -y texlive-lang-chinese texlive-latex-extra",
     "xeCJK.sty": "sudo apt install -y texlive-xetex texlive-lang-chinese",
 }
 
 UNDEFINED_COMMAND_FALLBACKS = {
+    "ignorespaces": "\\providecommand{\\ignorespaces}{}\n",
     "acronym": (
-        "\\providecommand{\\acronym}{SceneCrafter}\n"
-        "% 译文里常见的模型名/方法名宏定义，如果你有更准确原文定义可在文档中补齐。"
+        "\\providecommand{\\acronym}{}\n"
+    ),
+    "pdfcompresslevel": (
+        "\\newcount\\pdfcompresslevel\n"
+        "\\pdfcompresslevel=0\n"
+        "% XeLaTeX 下部分样式文件会直接写入该原始 pdfTeX 寄存器；"
+        " 使用计数寄存器占位可避免 undefined control sequence 崩溃。"
+    ),
+    "pdfobjcompresslevel": (
+        "\\newcount\\pdfobjcompresslevel\n"
+        "\\pdfobjcompresslevel=3\n"
+        "% 与 pdfcompresslevel 类似的兼容兜底定义。"
+    ),
+    "pdfminorversion": (
+        "\\newcount\\pdfminorversion\n"
+        "\\pdfminorversion=5\n"
+    ),
+    "pdfoptionpdfminorversion": (
+        "\\newcount\\pdfoptionpdfminorversion\n"
+        "\\pdfoptionpdfminorversion=6\n"
+    ),
+    "pdfglyphtounicode": (
+        "\\ifx\\pdfglyphtounicode\\undefined\\def\\pdfglyphtounicode#1#2{}\\fi\n"
+    ),
+    "pdfgentounicode": (
+        "\\ifx\\pdfgentounicode\\undefined\\newcount\\pdfgentounicode\\fi\n"
+    ),
+    "Checkmark": (
+        "\\providecommand{\\Checkmark}{\\checkmark}\n"
+    ),
+    "CheckmarkBold": (
+        "\\providecommand{\\CheckmarkBold}{\\checkmark}\n"
+    ),
+    "XSolidBrush": (
+        "\\providecommand{\\XSolidBrush}{\\ensuremath{\\times}}\n"
+    ),
+    "xmark": (
+        "\\providecommand{\\xmark}{\\ensuremath{\\times}}\n"
+    ),
+    "cmark": (
+        "\\providecommand{\\cmark}{\\checkmark}\n"
     ),
 }
+
+BBDING_FALLBACK = (
+    "% Auto fallback: bbding.sty not found, use plain symbol fallback.\n"
+    "% bbding 常见符号在不完整环境中的兼容定义。\n"
+    "\\providecommand{\\Checkmark}{\\checkmark}\n"
+    "\\providecommand{\\CheckmarkBold}{\\checkmark}\n"
+    "\\providecommand{\\cmark}{\\checkmark}\n"
+    "\\providecommand{\\xmark}{\\ensuremath{\\times}}\n"
+    "\\providecommand{\\XSolidBrush}{\\ensuremath{\\times}}\n"
+)
 
 
 def rel(path: Path) -> str:
@@ -80,7 +131,10 @@ def has_command_definition(tex: str, command: str) -> bool:
     patterns = [
         rf"\\(?:newcommand|renewcommand|providecommand)\*?\s*\{{\\{escaped}\}}",
         rf"\\DeclareRobustCommand\*?\s*\{{\\{escaped}\}}",
+        rf"\\newcount\\{escaped}\b",
         rf"\\def\\{escaped}\b",
+        rf"\\edef\\{escaped}\b",
+        rf"\\xdef\\{escaped}\b",
         rf"\\let\\{escaped}\s*=?",
     ]
     return any(re.search(pattern, tex, flags=re.MULTILINE) is not None for pattern in patterns)
@@ -93,12 +147,14 @@ def inject_missing_command_fallbacks(main_tex: Path, missing_commands: list[str]
         return False
 
     text = main_tex.read_text(encoding="utf-8", errors="replace")
-    if "\\begin{document}" not in text:
+    documentclass_match = re.search(r"(?m)^\\documentclass(?:\[[^]]*\])?\{[^}]+\}\s*$", text)
+    begin_document_match = re.search(r"(?m)^\\begin\\{document\\}\s*$", text)
+    if documentclass_match is None and begin_document_match is None:
         return False
 
-    begin_idx = text.index("\\begin{document}")
-    preamble = text[:begin_idx]
-    body = text[begin_idx:]
+    insertion_idx = documentclass_match.end() if documentclass_match else begin_document_match.start()
+    preamble = text[:insertion_idx]
+    insertion_token = text[insertion_idx:]
     block_lines: list[str] = []
     for command in missing_commands:
         cmd = command.lstrip("\\")
@@ -110,7 +166,7 @@ def inject_missing_command_fallbacks(main_tex: Path, missing_commands: list[str]
         return False
 
     fallback_block = "\n\n% Auto fallback: keep compileable for translated control sequences.\n" + "\n".join(block_lines) + "\n"
-    updated = preamble.rstrip() + fallback_block + body
+    updated = preamble + fallback_block + insertion_token
     main_tex.write_text(updated, encoding="utf-8")
     return True
 
@@ -230,6 +286,11 @@ def normalize_optional_packages(tex: str) -> str:
     tex = re.sub(
         r"(?m)^(?!\s*%)\\usepackage(?:\[[^]]*\])?\{ifsym\}\s*$",
         lambda _match: IFSYM_FALLBACK,
+        tex,
+    )
+    tex = re.sub(
+        r"(?m)^(?!\s*%)\\usepackage(?:\[[^]]*\])?\{bbding\}\s*$",
+        lambda _match: BBDING_FALLBACK,
         tex,
     )
     tex = re.sub(
@@ -824,9 +885,9 @@ def summarize_latex_failures(log_path: Path) -> None:
         print(f"[build] LaTeX 失败片段（最近 30 行）:\n{tail}")
 
 
-def parse_latex_failures(log_path: Path) -> tuple[list[str], list[str], bool, list[str]]:
+def parse_latex_failures(log_path: Path) -> tuple[list[str], list[str], bool, list[str], bool]:
     if not log_path.exists():
-        return [], [], False, []
+        return [], [], False, [], False
 
     lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
     missing_files = []
@@ -844,24 +905,113 @@ def parse_latex_failures(log_path: Path) -> tuple[list[str], list[str], bool, li
 
         if "Undefined control sequence." in line:
             for j in range(idx, min(idx + 6, len(lines))):
-                match = re.search(r"\\([A-Za-z@]+)(?=[^A-Za-z@]|$)", lines[j])
-                if match:
-                    missing_commands.append("\\" + match.group(1))
-                    break
+                missing_commands.extend(
+                    [
+                        "\\" + m.group(1)
+                        for m in re.finditer(r"\\([A-Za-z@]+)(?=[^A-Za-z@]|$)", lines[j])
+                    ]
+                )
 
         glyph_match = re.search(r"Cannot use XeTeXglyph with (.+); not a native platform font\.", line)
         if glyph_match:
             has_xelatex_glyph_error = True
             glyph_fonts.append(glyph_match.group(1).strip())
 
-    return sorted(set(missing_files)), sorted(set(missing_commands)), has_xelatex_glyph_error, sorted(set(glyph_fonts))
+    has_bibtex_error = any(
+        "I was expecting a `" in line
+        or "I was expecting a `" in line
+        or "Error--" in line and "a `,'" in line
+        or "I don't understand this entry" in line
+        for line in lines
+    )
+    has_bibtex_error = has_bibtex_error or any(
+        "Fatal error (all \"end of file\" reached)" in line for line in lines
+    )
+    has_bibtex_error = has_bibtex_error or any(
+        "No file" in line and ".bbl" in line for line in lines
+    )
+
+    blg_path = log_path.with_suffix(".blg")
+    if blg_path.exists():
+        blg_lines = blg_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        has_bibtex_error = has_bibtex_error or any(
+            "I was expecting a `" in line
+            or "---line" in line
+            or "Error--" in line and "a `,'" in line
+            or "I don't understand this entry" in line
+            for line in blg_lines
+        )
+        has_bibtex_error = has_bibtex_error or any("Fatal error" in line for line in blg_lines)
+
+    return (
+        sorted(set(missing_files)),
+        sorted(set(missing_commands)),
+        has_xelatex_glyph_error,
+        sorted(set(glyph_fonts)),
+        has_bibtex_error,
+    )
 
 
-def apply_auto_fallbacks_from_log(log_path: Path, zh: Path) -> bool:
-    missing_files, missing_commands, has_xelatex_glyph_error, _ = parse_latex_failures(log_path)
+def disable_bibliography_in_tex(main_tex: Path) -> bool:
+    text = main_tex.read_text(encoding="utf-8", errors="replace")
+    changed = False
+    pattern = re.compile(
+        r"\n\\bibliographystyle\{[^}]+\}\s*\\bibliography\{[^}]+\}\n",
+        flags=re.MULTILINE,
+    )
+
+    def repl(_match: re.Match[str]) -> str:
+        nonlocal changed
+        changed = True
+        return (
+            "\n% Auto fallback: disabled bibtex block due parse error.\n"
+            + "\n".join(f"% {line}" for line in _match.group(0).strip().splitlines())
+            + "\n"
+        )
+
+    new_text = pattern.sub(repl, text)
+    if not changed:
+        pattern2 = re.compile(
+            r"\n\\bibliographystyle\{[^}]+\}\s*\n\\bibliography\{[^}]+\}\n",
+            flags=re.MULTILINE,
+        )
+        new_text = pattern2.sub(repl, new_text)
+        changed = new_text != text
+
+    if not changed:
+        macro_pattern = re.compile(
+            r"^\s*\\bib(?:style|data)\{[^}]+\}\s*$", flags=re.MULTILINE
+        )
+        changed_lines: list[str] = []
+        for line in new_text.splitlines():
+            if macro_pattern.match(line):
+                changed_lines.append("% " + line)
+                changed = True
+            else:
+                changed_lines.append(line)
+        new_text = "\n".join(changed_lines)
+        if changed and new_text and not new_text.endswith("\n"):
+            new_text += "\n"
+
+    if changed and r"Auto fallback: disabled bibtex block due parse error." not in new_text:
+        marker = "% Auto fallback: disabled bibtex block due parse error.\n"
+        new_text = marker + new_text
+    if changed:
+        main_tex.write_text(new_text, encoding="utf-8")
+    return changed
+
+
+def apply_auto_fallbacks_from_log(log_path: Path, zh: Path, main_tex: Path) -> bool:
+    (
+        missing_files,
+        missing_commands,
+        has_xelatex_glyph_error,
+        _,
+        has_bibtex_error,
+    ) = parse_latex_failures(log_path)
     changed = False
 
-    if any(item in {"ifsym.sty", "bbm.sty"} for item in missing_files):
+    if any(item in {"ifsym.sty", "bbm.sty", "bbding.sty"} for item in missing_files):
         normalized = normalize_optional_packages_in_dir(zh)
         if normalized:
             print(f"[build] 已应用缺失可选包兼容补丁：{normalized} 个 TeX 文件", flush=True)
@@ -874,15 +1024,21 @@ def apply_auto_fallbacks_from_log(log_path: Path, zh: Path) -> bool:
             changed = True
 
     if missing_commands:
-        main = sorted(zh.glob("main*.tex"))
-        if main:
-            fallback_injected = inject_missing_command_fallbacks(main[0], missing_commands)
+        if main_tex.exists():
+            fallback_injected = inject_missing_command_fallbacks(main_tex, missing_commands)
             if fallback_injected:
                 print(f"[build] 已注入未定义命令兼容定义：{', '.join(missing_commands)}", flush=True)
                 changed = True
             boundary_fixed = normalize_cjk_adjacent_macros(zh, missing_commands)
             if boundary_fixed:
                 print(f"[build] 已修复中文相邻命令边界：{', '.join(missing_commands)}", flush=True)
+                changed = True
+
+    if has_bibtex_error:
+        if main_tex.exists():
+            bib_disabled = disable_bibliography_in_tex(main_tex)
+            if bib_disabled:
+                print("[build] 已禁用 BibTeX 参考文献块并尝试继续编译", flush=True)
                 changed = True
 
     if not changed and not missing_files and not has_xelatex_glyph_error:
@@ -972,7 +1128,7 @@ def build(args: argparse.Namespace) -> None:
     print(f"[build] 开始编译: {rel(tex)}", flush=True)
     print(f"[build] 输出目录: {rel(build_dir)}", flush=True)
 
-    max_attempts = 2
+    max_attempts = 8
     last_exc: subprocess.CalledProcessError | None = None
     for attempt in range(1, max_attempts + 1):
         if build_dir.exists():
@@ -1002,7 +1158,7 @@ def build(args: argparse.Namespace) -> None:
             print(f"[build] 中文 PDF 编译失败（第 {attempt} 次）: {detail}", flush=True)
 
             summarize_latex_failures(log_path)
-            if attempt < max_attempts and apply_auto_fallbacks_from_log(log_path, zh):
+            if attempt < max_attempts and apply_auto_fallbacks_from_log(log_path, zh, tex):
                 print("[build] 已应用可恢复补丁，尝试继续编译", flush=True)
                 continue
             break
