@@ -16,4 +16,3 @@
 - **LaTeX 共享层** — 官方 installer scheme-full，装于 `/data/texlive/2026`，通过 `~/.bashrc` 加入 PATH。所有 shell 与 conda 环境直接调 `xelatex` / `latexmk` / `tlmgr`。宏包更新用 `tlmgr update --self --all`，缺包用 `tlmgr install <pkg>`。不用 apt、conda-forge、tectonic 等替代方式。
 - **Python 能力环境** — 每个能力一个独立 conda 环境，只装该能力的 Python 依赖。当前已有 `arxiv_translate`（arXiv → 中文 PDF）；规划 `pdf_translate`、`manuscript_to_ppt` 等。不使用 venv 或系统 pip。
 
-> 通用的 pip / conda 包管理约定（国内源临时配置、取消代理等）见全局 `~/.claude/CLAUDE.md` 的 `Package Installation` 章节。
