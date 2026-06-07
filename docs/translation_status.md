@@ -81,19 +81,19 @@
 查看当前列表：
 
 ```bash
-conda run -n paper_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py list
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py list
 ```
 
 Codex 流水线：
 
 ```bash
-conda run -n paper_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py prepare <pdf>
-conda run -n paper_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py build <arxiv_id>
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py prepare <pdf>
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py build <arxiv_id>
 ```
 
 DeepSeek API 流水线：
 
 ```bash
 export DEEPSEEK_API_KEY="sk-..."
-conda run -n paper_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py api-translate <pdf>
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py api-translate <pdf>
 ```

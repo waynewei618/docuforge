@@ -42,7 +42,7 @@ workspace/arxiv_translation/
 先激活项目 Python 环境：
 
 ```bash
-conda activate paper_translate
+conda activate arxiv_translate
 ```
 
 初始化翻译项目：
@@ -77,7 +77,7 @@ workspace/arxiv_translation/work/<arxiv_id>/zh 中的 LaTeX 源码。
 3. 方法名、模型名、数据集名、指标名保留英文或采用约定术语；
 4. 参考文献默认保留英文；
 5. 翻译完成后运行：
-   conda run -n paper_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py build <arxiv_id>
+   conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py build <arxiv_id>
 6. 若编译失败，请根据日志修复，直到中文 PDF 成功生成并复制到源 PDF 同目录。
 ```
 
@@ -133,28 +133,28 @@ export DEEPSEEK_MODEL=deepseek-v4-pro
 先做 dry-run，确认脚本能识别待翻译片段，但不会调用 API：
 
 ```bash
-conda run -n paper_translate python workflows/arxiv_translation/scripts/deepseek_translate_tex.py \
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/deepseek_translate_tex.py \
   translate <arxiv_id> --dry-run --limit-chunks 5
 ```
 
 正式翻译并编译：
 
 ```bash
-conda run -n paper_translate python workflows/arxiv_translation/scripts/deepseek_translate_tex.py \
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/deepseek_translate_tex.py \
   translate <arxiv_id> --build
 ```
 
 只翻译主文件：
 
 ```bash
-conda run -n paper_translate python workflows/arxiv_translation/scripts/deepseek_translate_tex.py \
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/deepseek_translate_tex.py \
   translate <arxiv_id> --main-only --build
 ```
 
 只翻译指定子文件：
 
 ```bash
-conda run -n paper_translate python workflows/arxiv_translation/scripts/deepseek_translate_tex.py \
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/deepseek_translate_tex.py \
   translate <arxiv_id> --files sec/1_intro.tex sec/2_related_work.tex --build
 ```
 
@@ -167,7 +167,7 @@ conda run -n paper_translate python workflows/arxiv_translation/scripts/deepseek
 - 改写前把原 TeX 备份到 `workspace/arxiv_translation/work/<arxiv_id>/api_backups/<timestamp>/`；
 - API 调用日志写入 `workspace/arxiv_translation/work/<arxiv_id>/notes/deepseek_translation_log.jsonl`；
 - 加 `--build` 后复用 `translate_arxiv_pdf.py build`，中文 PDF 仍会放入 `workspace/arxiv_translation/outbox/` 并复制回源 PDF 同目录。
-- 编译时如遇缺失宏包文件，会输出可直接安装建议（例如 `texlive-fonts-extra`、`texlive-science`、`texlive-latex-extra`）。
+- 编译时如遇缺失宏包文件，会输出对应的 `tlmgr install <pkg>` 安装建议（例如 `tlmgr install bbm`、`tlmgr install ifsym`）。本项目按官方 installer scheme-full 部署，默认不会触发；若使用 scheme-medium/small 等自定义子集才会用到，详见 [LaTeX 环境配置](latex_guide.md#本项目-latex-环境配置)。
 - 遇到可恢复缺口（如 `ifsym.sty`、`bbm.sty`、`fontenc/inputenc` 兼容问题）会先做降级补丁并重试；仍失败时输出失败日志中的缺失文件与安装建议。
 
 自动降级策略（不显著影响成品）：
@@ -226,7 +226,7 @@ workspace/arxiv_translation/work/<arxiv_id>/notes/translation_rules.md
 三步式：
 
 ```bash
-conda activate paper_translate
+conda activate arxiv_translate
 
 python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py prepare /path/to/paper.pdf
 
@@ -238,7 +238,7 @@ python workflows/arxiv_translation/scripts/deepseek_translate_tex.py translate <
 一条命令式：
 
 ```bash
-conda activate paper_translate
+conda activate arxiv_translate
 
 export DEEPSEEK_API_KEY="sk-..."
 
@@ -262,7 +262,7 @@ python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py api-translate 
 如果只有文章 ID，没有本地 PDF，可以直接使用 `translate-id` 接口：
 
 ```bash
-conda activate paper_translate
+conda activate arxiv_translate
 export DEEPSEEK_API_KEY="sk-..."
 
 python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py translate-id 2405.17705
@@ -299,11 +299,14 @@ python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py doctor
 
 必须可用：
 
-- `conda` 环境：`paper_translate`
-- `xelatex`
-- `latexmk`
-- `pdftotext`（源码不可用时用于降级抽取）
-- 中文字体：Noto CJK 或系统可用 CJK 字体
+- Python：conda 环境 `arxiv_translate`（只装本能力的 Python 依赖，不要装 LaTeX 工具）
+- LaTeX：官方 TeX Live 2026 装于 `/data/texlive/2026`（scheme-full），通过 `~/.bashrc` 加入 `PATH` 暴露给所有 conda 环境
+  - `xelatex`、`latexmk`、`tlmgr` 均应解析到 `/data/texlive/2026/bin/x86_64-linux/`
+  - `ctex.sty`、`xeCJK.sty` 由 scheme-full 自带，无需单独装
+- 辅助：`pdftotext`（系统包 `poppler-utils`，源码不可用时用于降级抽取）
+- 中文字体：scheme-full 自带 fandol；系统级 Noto CJK 可补充
+
+完整安装步骤与 apt/conda/installer 选型对比见 [LaTeX 环境配置](latex_guide.md#本项目-latex-环境配置)。
 
 ## 翻译规则
 

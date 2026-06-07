@@ -36,33 +36,33 @@ papers/                       # 当前样例/研究资料库
 查看论文列表：
 
 ```bash
-conda run -n paper_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py list
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py list
 ```
 
 初始化一篇 arXiv 论文翻译工程：
 
 ```bash
-conda run -n paper_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py prepare <pdf>
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py prepare <pdf>
 ```
 
 编译已翻译的中文 LaTeX 工程：
 
 ```bash
-conda run -n paper_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py build <arxiv_id>
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py build <arxiv_id>
 ```
 
 使用 DeepSeek API 一键 prepare、翻译并编译：
 
 ```bash
 export DEEPSEEK_API_KEY="sk-..."
-conda run -n paper_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py api-translate <pdf>
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py api-translate <pdf>
 ```
 
 按 arXiv ID 获取英文 PDF 并输出中英双 PDF：
 
 ```bash
 export DEEPSEEK_API_KEY="sk-..."
-conda run -n paper_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py translate-id 2405.17705
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py translate-id 2405.17705
 ```
 
 默认产物：
@@ -81,6 +81,7 @@ workspace/arxiv_translation/outbox/<arxiv_id>_zh.pdf
 
 ## 环境约定
 
-- Python 环境：`conda` 环境 `paper_translate`。
+- LaTeX 工具链：官方 TeX Live 2026 (`scheme-full`)，装于 `/data/texlive/2026`，通过 `~/.bashrc` 加入 `PATH`；所有 conda 环境直接调用 `xelatex` / `latexmk` / `tlmgr`。不使用 apt 版 TeX Live，不在 conda 环境里装 tectonic 或 texlive。详见 [LaTeX 环境配置](docs/latex_guide.md#本项目-latex-环境配置)。
+- Python 能力环境：每能力一个独立 conda 环境，只装该能力的 Python 依赖。当前已有 `arxiv_translate`（arXiv 论文 → 中文 PDF）。
 - 不把 API key 写入项目文件；DeepSeek 默认读取 `DEEPSEEK_API_KEY`。
-- pip/conda 国内源只在单条命令中临时指定，不配置全局源。
+- pip/conda 国内源只在单条命令中临时指定，不配置全局源；LaTeX 宏包用 `tlmgr install` / `tlmgr update --self --all` 维护。

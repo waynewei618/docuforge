@@ -40,12 +40,16 @@ XELATEX_ENCODING_FALLBACK = (
 )
 
 MISSING_PKG_HINTS = {
-    "bbm.sty": "sudo apt install -y texlive-fonts-extra",
-    "ifsym.sty": "sudo apt install -y texlive-science texlive-latex-extra",
-    "bbding.sty": "sudo apt install -y texlive-latex-extra",
-    "xcolor.sty": "sudo apt install -y texlive-latex-recommended",
-    "ctex.sty": "sudo apt install -y texlive-lang-chinese texlive-latex-extra",
-    "xeCJK.sty": "sudo apt install -y texlive-xetex texlive-lang-chinese",
+    # 缺失 .sty 文件 → 对应 tlmgr 安装命令。
+    # 项目默认假设 TeX Live 由官方 installer 装到 /data/texlive/2026 (scheme-full)，
+    # 该方案自带 CTAN 全部宏包，因此这里命中通常意味着环境是 scheme-medium/small 或自定义子集，
+    # 直接用 tlmgr 单包增量补齐即可（无需 sudo，用户态）。
+    "bbm.sty": "tlmgr install bbm",
+    "ifsym.sty": "tlmgr install ifsym",
+    "bbding.sty": "tlmgr install bbding",
+    "xcolor.sty": "tlmgr install xcolor",
+    "ctex.sty": "tlmgr install ctex",
+    "xeCJK.sty": "tlmgr install xecjk",
 }
 
 UNDEFINED_COMMAND_FALLBACKS = {
@@ -301,6 +305,15 @@ def normalize_optional_packages(tex: str) -> str:
     return tex
 
 
+def normalize_graphics_px_units(tex: str) -> str:
+    """兼容 XeLaTeX：将图像裁切常见 `px` 写法转换为 pt。
+
+    许多 arXiv 源码会使用 `trim={10px ...}`，在当前编译环境会触发
+    "Illegal unit of measure"。该转换对版式影响较小，能显著提高可编译性。
+    """
+    return re.sub(r"([0-9]+)px", r"\1pt", tex)
+
+
 def normalize_xelatex_encoding(tex: str) -> str:
     tex = re.sub(
         r"(?m)^(?!\s*%)\\usepackage\[[^]]*\]\{inputenc\}\s*(%.*)?$",
@@ -350,7 +363,9 @@ def normalize_optional_packages_in_dir(tex_root: Path) -> int:
     updated = 0
     for path in sorted(tex_root.rglob("*.tex")):
         text = path.read_text(encoding="utf-8", errors="replace")
-        normalized = normalize_xelatex_encoding(normalize_optional_packages(text))
+        normalized = normalize_graphics_px_units(
+            normalize_xelatex_encoding(normalize_optional_packages(text))
+        )
         if normalized != text:
             path.write_text(normalized, encoding="utf-8")
             updated += 1
@@ -953,6 +968,21 @@ def parse_latex_failures(log_path: Path) -> tuple[list[str], list[str], bool, li
     )
 
 
+def is_nonfatal_latex_failure(log_path: Path, pdf_path: Path) -> bool:
+    """判断 LaTeX 失败日志是否为可接受的“非致命”警告型问题。"""
+    if not log_path.exists() or not pdf_path.exists():
+        return False
+
+    text = log_path.read_text(encoding="utf-8", errors="replace")
+    if "No pages of output." in text:
+        return False
+    if re.search(r"^! (?:Package|Class|LaTeX Error|Undefined|Missing|Extra|Emergency stop|Fatal error)", text, re.M):
+        return False
+    if "Latexmk:.*Had errors" in text:
+        return False
+    return True
+
+
 def disable_bibliography_in_tex(main_tex: Path) -> bool:
     text = main_tex.read_text(encoding="utf-8", errors="replace")
     changed = False
@@ -1164,12 +1194,16 @@ def build(args: argparse.Namespace) -> None:
                 continue
             break
 
-    if last_exc is not None:
-        raise SystemExit("中文 PDF 编译失败")
-
     pdf = build_dir / f"{tex.stem}.pdf"
     if not pdf.exists():
         raise SystemExit(f"未找到编译产物：{pdf}")
+
+    if last_exc is not None:
+        log_path = build_dir / f"{tex.stem}.log"
+        if is_nonfatal_latex_failure(log_path, pdf):
+            print("[build] 中文 PDF 编译完成（检测到未决引用/警告），继续输出产物", flush=True)
+        else:
+            raise SystemExit("中文 PDF 编译失败")
     out_pdf = OUTBOX / f"{work_id}_zh.pdf"
     out_tex = OUTBOX / f"{work_id}_zh.tex"
     shutil.copy2(pdf, out_pdf)

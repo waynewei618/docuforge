@@ -70,15 +70,18 @@ LaTeX 源码 .tex
 
 本项目需要的核心组件包括：
 
-| 组件 | 作用 |
-|---|---|
-| TeX Live | LaTeX 发行版，包含编译器、宏包、字体配置和辅助工具 |
-| XeLaTeX | 支持 Unicode 和系统字体的 LaTeX 引擎，适合中文 PDF |
-| latexmk | 自动多轮编译，处理引用、目录、BibTeX 等依赖 |
-| ctex / xeCJK | 中文排版宏包 |
-| Noto CJK 字体 | 中文正文和等宽字体 |
-| BibTeX / biber | 参考文献处理 |
-| poppler-utils | PDF 文本抽取、检查等辅助工具 |
+| 组件 | 作用 | 在本项目中由谁提供 |
+|---|---|---|
+| TeX Live | LaTeX 发行版，包含编译器、宏包、字体配置和辅助工具 | `/data/texlive/2026`（官方 installer，scheme-full） |
+| XeLaTeX | 支持 Unicode 和系统字体的 LaTeX 引擎，适合中文 PDF | 同上 |
+| latexmk | 自动多轮编译，处理引用、目录、BibTeX 等依赖 | 同上 |
+| ctex / xeCJK | 中文排版宏包 | 同上（scheme-full 自带） |
+| 中文字体 | 中文正文和等宽字体（fandol、华文字体等） | 同上（scheme-full 自带 fandol；系统级 Noto CJK 可补充） |
+| BibTeX / biber | 参考文献处理 | 同上 |
+| poppler-utils | PDF 文本抽取、检查等辅助工具 | 系统包 `apt install poppler-utils`（与 LaTeX 无关） |
+
+> scheme-full 把所有 CTAN 宏包和 fandol 等中文字体一次装齐，因此「中文字体」「会议模板」「BibTeX」都不需要单独装。具体安装方式见下方「本项目 LaTeX 环境配置」。
+
 
 本项目里常见编译命令是：
 
@@ -458,7 +461,7 @@ workspace/arxiv_translation/work/<arxiv_id>/zh/
 也都会通过：
 
 ```bash
-conda run -n paper_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py build <arxiv_id>
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py build <arxiv_id>
 ```
 
 生成中文 PDF。
@@ -507,98 +510,179 @@ workspace/arxiv_translation/work/<arxiv_id>/notes/translation_rules.md
 
 ## 本项目 LaTeX 环境配置
 
-本项目 Python 环境使用 conda 环境：
+本项目把 LaTeX 工具链当作**全局共享资源**，不和任何 conda 能力环境绑在一起：
 
-```bash
-conda activate paper_translate
+```text
+LaTeX 工具链（一份，全局共享）
+  └─ /data/texlive/2026          ← 官方 install-tl 装的 TeX Live 2026 scheme-full
+  └─ 通过 PATH 暴露给所有 shell 和 conda 环境
+
+Python 能力环境（每能力一个 conda env）
+  └─ arxiv_translate              ← 本能力的 Python 依赖（pymupdf / pypdf / rich / ...）
+  └─ pdf_translate                ← 规划中
+  └─ ...
 ```
 
-Python 包负责下载、解包、文本处理、调用 DeepSeek API 和组织文件；LaTeX 系统负责最终 PDF 编译。二者不是一回事。
+任何能力环境里都**不要装 TeX Live 或 tectonic 这类 LaTeX 引擎**。脚本通过 PATH 直接调 `xelatex` / `latexmk` / `tlmgr` 即可。
 
-建议先安装项目 Python 辅助包：
+### 为什么选官方 installer，不选 apt 或 conda
+
+LaTeX 工具链至少有三种装法，各有优缺点：
+
+| 维度 | apt（`texlive-*`） | conda-forge（`texlive-core`、`tectonic`） | 官方 install-tl（**本项目采用**） |
+|---|---|---|---|
+| TeX Live 版本 | 跟 Ubuntu 发行版，可能落后 1–2 年 | conda-forge 跟得相对慢 | 永远最新，`tlmgr` 可滚动升级 |
+| 宏包完整性 | `texlive-full` 较全；按子包装常缺细分宏包 | **明显不全**，arXiv 论文常报缺包 | scheme-full **覆盖 CTAN 全部宏包** |
+| 单包补装 | apt 粒度粗，小宏包常无独立包 | conda-forge 上很多宏包根本没打包 | `tlmgr install <pkg>`，CTAN 任意单包 |
+| 权限 | 需要 `sudo` | 用户态 | **用户态**，不动系统 |
+| 多版本共存 | 不行 | 不行 | 可（`/data/texlive/2024`、`/data/texlive/2026` 并存） |
+| 跟其他系统包耦合 | 升级时偶尔被联动卸载/降级 | 不耦合系统 | **完全独立**，系统升级不动它 |
+| 首装时间 | 几分钟（apt 缓存） | 几分钟 | 30–120 分钟（要下 4000+ 宏包） |
+| 卸载干净 | `apt purge` | `conda remove` | `rm -rf` 安装目录 |
+
+对本项目（编译近 1–2 年的 arXiv 论文，宏包更新非常快）来说，决定性因素是**宏包完整性 + tlmgr 单包增量更新能力**——apt 和 conda 都在这两点上明显不足。代价是首装时间长，但只需要付一次。
+
+### 安装步骤（本项目实际使用）
+
+#### 1. 卸载历史 apt TeX Live（如果有）
 
 ```bash
-conda run -n paper_translate python -m pip install pymupdf pypdf rich pydantic jinja2
+# 先 dry-run，确认不会牵连关键工具
+sudo apt-get -s purge 'texlive-*' 'latex-cjk-*' tex-common latexmk lmodern fonts-lmodern tipa 2>&1 \
+  | grep -E "^(Remv|Purg)" | head -40
+
+# 确认无意外后正式卸载
+sudo apt-get purge -y 'texlive-*' 'latex-cjk-*' tex-common latexmk lmodern fonts-lmodern tipa
+sudo apt-get autoremove -y
+sudo rm -rf /var/lib/texmf /etc/texmf
+hash -r
 ```
 
-如果需要使用国内源，不要写入全局 pip 配置。按本项目约定，只在单条命令里临时指定，并取消代理：
+#### 2. 用官方 installer 装 scheme-full 到 `/data/texlive/2026`
+
+> **选 `/data` 而不是 `~/`**：scheme-full 约 10G，家目录所在分区如果紧张就装到大盘。本项目 `/data` 是 1.8T 盘，剩余 1.3T，余量充足。
 
 ```bash
+# 取消代理，走清华源下 installer
+cd /tmp
 env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
-  conda run -n paper_translate python -m pip install \
+  wget https://mirrors.tuna.tsinghua.edu.cn/CTAN/systems/texlive/tlnet/install-tl-unx.tar.gz
+tar -xzf install-tl-unx.tar.gz
+cd install-tl-2*/
+
+# 非交互安装 scheme-full 到 /data/texlive/2026
+env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+  ./install-tl \
+  -repository https://mirrors.tuna.tsinghua.edu.cn/CTAN/systems/texlive/tlnet/ \
+  -scheme scheme-full \
+  -no-interaction \
+  -texdir /data/texlive/2026 \
+  -texuserdir /data/texlive/.texlive2026
+```
+
+清华源走得满的话 1.5–2 小时完成（5000+ 宏包，约 10G）。中途断网可以重跑同一条命令，installer 支持续装。
+
+#### 3. 把 TeX Live 加入 PATH
+
+```bash
+cat >> ~/.bashrc <<'EOF'
+
+# TeX Live 2026 (官方 installer 装于 /data)
+export PATH="/data/texlive/2026/bin/x86_64-linux:$PATH"
+export MANPATH="/data/texlive/2026/texmf-dist/doc/man:$MANPATH"
+export INFOPATH="/data/texlive/2026/texmf-dist/doc/info:$INFOPATH"
+EOF
+
+source ~/.bashrc
+```
+
+#### 4.（可选）把 tlmgr 默认源切到清华
+
+```bash
+tlmgr option repository https://mirrors.tuna.tsinghua.edu.cn/CTAN/systems/texlive/tlnet/
+```
+
+以后 `tlmgr install` / `tlmgr update --self --all` 都自动走国内源。
+
+#### 5. 验证
+
+```bash
+which xelatex latexmk tlmgr
+xelatex --version | head -1
+tlmgr --version | head -3
+```
+
+应该看到：
+
+```text
+/data/texlive/2026/bin/x86_64-linux/xelatex
+/data/texlive/2026/bin/x86_64-linux/latexmk
+/data/texlive/2026/bin/x86_64-linux/tlmgr
+XeTeX 3.141592653-2.6-0.999998 (TeX Live 2026)
+tlmgr revision ...
+TeX Live ... version 2026
+```
+
+### 安装 Python 能力环境
+
+LaTeX 工具链装好后，再准备 `arxiv_translate` conda 环境（只装 Python 依赖）：
+
+```bash
+# 创建环境
+conda create -n arxiv_translate python=3.11 -y
+
+# 国内源临时装包（不写入全局配置）
+env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+  conda run -n arxiv_translate python -m pip install \
   -i https://pypi.tuna.tsinghua.edu.cn/simple \
   pymupdf pypdf rich pydantic jinja2
 ```
 
-Ubuntu / Debian 上需要的 LaTeX 和 PDF 工具：
+**禁止**在 `arxiv_translate`（或任何能力环境）里装 `tectonic` / `texlive-core` 等 LaTeX 包——LaTeX 只走 `/data/texlive/2026` 这一份。
+
+### 验证完整链路
 
 ```bash
-sudo apt update
-sudo apt install -y \
-  texlive-xetex \
-  texlive-latex-extra \
-  texlive-lang-chinese \
-  texlive-publishers \
-  latexmk \
-  fonts-noto-cjk \
-  poppler-utils
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py doctor
 ```
 
-这些包的作用：
-
-| 包 | 作用 |
-|---|---|
-| `texlive-xetex` | 提供 XeLaTeX 引擎，支持 Unicode 和系统字体 |
-| `texlive-latex-extra` | 提供大量论文常用宏包 |
-| `texlive-lang-chinese` | 提供中文相关宏包，如 `ctex` / `xeCJK` |
-| `texlive-publishers` | 提供 ACM、IEEE 等出版模板相关宏包 |
-| `latexmk` | 自动多轮编译 LaTeX |
-| `fonts-noto-cjk` | 提供 Noto 中文字体 |
-| `poppler-utils` | 提供 `pdftotext` 等 PDF 辅助工具 |
-
-安装后检查：
-
-```bash
-conda run -n paper_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py doctor
-```
-
-至少应能看到这些工具存在：
+输出应包含：
 
 ```text
-conda
-python
-xelatex
-latexmk
-pdftotext
-ctex.sty
-xeCJK.sty
+conda:    /home/.../miniconda3/bin/conda
+python:   /home/.../miniconda3/envs/arxiv_translate/bin/python
+xelatex:  /data/texlive/2026/bin/x86_64-linux/xelatex
+latexmk:  /data/texlive/2026/bin/x86_64-linux/latexmk
+pdftotext: /usr/bin/pdftotext
+ctex.sty: /data/texlive/2026/texmf-dist/tex/latex/ctex/ctex.sty
+xeCJK.sty: /data/texlive/2026/texmf-dist/tex/xelatex/xecjk/xeCJK.sty
 ```
 
-也可以单独检查命令：
+关键点：`python` 来自 conda 能力环境，`xelatex` / `latexmk` / `*.sty` 全部来自 `/data/texlive/2026`，**两层职责分清**。
 
-```bash
-which xelatex
-which latexmk
-which pdftotext
-kpsewhich ctex.sty
-kpsewhich xeCJK.sty
-fc-match "Noto Serif CJK SC"
-```
+### 日常维护
 
-如果 `ctex.sty` 或 `xeCJK.sty` 找不到，通常是 `texlive-lang-chinese` 没装好。如果中文字体找不到，通常是 `fonts-noto-cjk` 没装好。如果某些会议模板编译失败，可能需要补 `texlive-publishers` 或其他 TeX Live 宏包。
+- **缺宏包**（编译报 `Package xxx not found`）：`tlmgr install <pkg>`
+- **更新宏包**（拿最新版本）：`tlmgr update --self --all`
+- **查宏包在哪**：`kpsewhich <pkg>.sty`
+- **看已装哪些宏包**：`tlmgr list --only-installed`
+- **完全卸载 TeX Live**：`rm -rf /data/texlive/2026 /data/texlive/.texlive2026`，然后从 `~/.bashrc` 删掉 PATH 三行
+
+`tlmgr` 完全用户态，不需要 sudo。
+
 
 ## 本项目常用 LaTeX 命令
 
 初始化单篇论文：
 
 ```bash
-conda run -n paper_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py prepare <pdf>
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py prepare <pdf>
 ```
 
 编译已翻译的中文 LaTeX 工程：
 
 ```bash
-conda run -n paper_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py build <arxiv_id>
+conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py build <arxiv_id>
 ```
 
 直接在某篇中文工程目录中手动编译：
