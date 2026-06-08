@@ -6,9 +6,8 @@
 
 - 有发表信息论文优先级已完成；剩余任务全部来自 `未查到正式发表信息/`。
 - 每篇优先使用 arXiv LaTeX 源码，保留原图、公式、引用和表格结构。
-- Codex 手工翻译流水线继续保留。
-- DeepSeek API 本地自动翻译流水线已加入，入口见 `docs/arxiv_translation.md`。
-- 中文 PDF 需要同时存在于 `workspace/arxiv_translation/outbox/` 和源英文 PDF 同目录。
+- 翻译后端通过 `--backend {deepseek,claude}` 显式指定：离线终端走 DeepSeek API，Claude Code 内显式走 `--backend claude` 调 `claude -p` subagent。
+- 中文 PDF 同时落在 `workflows/arxiv_translation/output/<id>_zh.pdf` 与源英文 PDF 同目录。
 
 ## 当前状态
 
@@ -27,7 +26,7 @@
 
 产物检查：
 
-- `workspace/arxiv_translation/outbox/` 中中文 PDF：98 份。
+- `workflows/arxiv_translation/output/` 中中文 PDF：98 份（注：本次重构后路径从原 `workspace/.../outbox/` 迁来）。
 - 源英文 PDF 同目录中文 PDF：98 份。
 
 ## 已完成 ID
@@ -78,22 +77,21 @@
 
 ## 常用命令
 
-查看当前列表：
+> 入口统一：`cd workflows/arxiv_translation`，然后 `python -m src.translate <arxiv_id> [选项]`。无子命令，整条流水线（下载/翻译/编译/落产物）一条命令跑完。
 
-```bash
-conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py list
-```
-
-Codex 流水线：
-
-```bash
-conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py prepare <pdf>
-conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py build <arxiv_id>
-```
-
-DeepSeek API 流水线：
+DeepSeek 后端（默认，离线终端）：
 
 ```bash
 export DEEPSEEK_API_KEY="sk-..."
-conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py api-translate <pdf>
+cd workflows/arxiv_translation
+conda run -n arxiv_translate python -m src.translate <arxiv_id>
 ```
+
+Claude Code subagent 后端（在 Claude Code 内）：
+
+```bash
+cd workflows/arxiv_translation
+conda run -n arxiv_translate python -m src.translate <arxiv_id> --backend claude
+```
+
+完整接口与选项见 [arxiv_translation.md](arxiv_translation.md) 与项目根 [README.md](../README.md)。

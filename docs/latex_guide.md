@@ -333,15 +333,15 @@ assets/overview.jpg
    - 或 DeepSeek API 本地脚本翻译。
 
 2. 排版层：
-   - `translate_arxiv_pdf.py prepare` 初始化论文工程；
-   - 修改 `workspace/arxiv_translation/work/<arxiv_id>/zh/` 下的 LaTeX；
-   - `translate_arxiv_pdf.py build` 调用 XeLaTeX 编译；
-   - 输出中文 PDF 到 `workspace/arxiv_translation/outbox/` 和源 PDF 同目录。
+   - `python -m src.translate <arxiv_id>` 跑完整条流水线（包含初始化）；
+   - 修改 `workflows/arxiv_translation/tmp/work/<arxiv_id>/zh/` 下的 LaTeX；
+   - 主流水线自动调 latexmk 编译，缓存留在 `tmp/work/<arxiv_id>/build_zh/`；
+   - 输出中文 PDF 到 `workflows/arxiv_translation/output/` 和源 PDF 同目录。
 
 还有一层目录组织：
 
 ```text
-workspace/arxiv_translation/work/<arxiv_id>/
+workflows/arxiv_translation/tmp/work/<arxiv_id>/
   input.pdf        # 本项目接收的英文 PDF 副本
   source/          # arXiv 原始英文 LaTeX 工程
   zh/              # 中文 LaTeX 工程，后续可继续编辑
@@ -355,7 +355,7 @@ workspace/arxiv_translation/work/<arxiv_id>/
 - `source/`：原始英文源码，尽量不要改；
 - `zh/`：中文翻译工程，翻译和修复都在这里做；
 - `build_zh/`：编译产生的中间文件，不作为主要编辑对象；
-- `outbox/`：集中保存最终中文 PDF 和主 TeX 副本。
+- `output/`（位于 `workflows/arxiv_translation/output/`）：用户感知的最终产物，每篇出 `<id>_en.pdf` 和 `<id>_zh.pdf`。
 
 简化流程：
 
@@ -375,17 +375,17 @@ workspace/arxiv_translation/work/<arxiv_id>/
   -> 从文件名识别 arXiv ID
   -> 到 arXiv 下载 e-print 源码包
   -> 解包成 LaTeX 工程
-  -> 复制一份到 workspace/arxiv_translation/work/<arxiv_id>/zh/
+  -> 复制一份到 workflows/arxiv_translation/tmp/work/<arxiv_id>/zh/
   -> 对其中英文标题、摘要、正文、图表标题做中文翻译
   -> 保留公式、图片、引用、表格、模板、BibTeX key
   -> 用 XeLaTeX / latexmk 重新编译
   -> 生成中文 PDF
-  -> 复制到 workspace/arxiv_translation/outbox/ 和源 PDF 同目录
+  -> 复制到 workflows/arxiv_translation/output/ 和源 PDF 同目录
 ```
 
 这里的关键点是：本项目不是直接修改 PDF，而是尽量修改“生成 PDF 的源码”。arXiv 论文通常是作者用 LaTeX 写出来的源码工程，经过 LaTeX 编译器渲染后才成为 PDF。本项目把英文 LaTeX 工程复制为中文 LaTeX 工程，翻译其中的自然语言文本，再重新编译成中文 PDF。
 
-`workspace/arxiv_translation/work/<arxiv_id>/zh/` 会一直保留。它是中文 LaTeX 工程目录，不是临时缓存。后续如果要润色翻译、修复排版、重新生成 PDF，都应直接修改这个目录下的 `.tex` 文件，然后重新运行 build。
+`workflows/arxiv_translation/tmp/work/<arxiv_id>/zh/` 会一直保留。它是中文 LaTeX 工程目录，不是临时缓存。后续如果要润色翻译、修复排版、重新生成 PDF，都应直接修改这个目录下的 `.tex` 文件，然后重新运行 build。
 
 ## 哪些步骤需要大模型
 
@@ -397,7 +397,7 @@ workspace/arxiv_translation/work/<arxiv_id>/
 | 从文件名识别 arXiv ID | 不需要 | 正则匹配文件名中的 `2308.04079` 这类 ID |
 | 到 arXiv 下载 e-print 源码包 | 不需要 | 普通网络下载 |
 | 解包成 LaTeX 工程 | 不需要 | `tar/gzip` 等本地解包 |
-| 复制到 `workspace/arxiv_translation/work/<arxiv_id>/zh/` | 不需要 | 文件复制 |
+| 复制到 `workflows/arxiv_translation/tmp/work/<arxiv_id>/zh/` | 不需要 | 文件复制 |
 | 翻译英文标题、摘要、正文、图表标题 | 需要 | 需要 Codex、DeepSeek API 或人工翻译 |
 | 保留公式、图片、引用、表格、模板、BibTeX key | 主要不需要 | 规则可由脚本控制，但大模型翻译时必须遵守 |
 | 编译 LaTeX 工程 | 不需要 | `latexmk` / `xelatex` 完成 |
@@ -413,7 +413,7 @@ workspace/arxiv_translation/work/<arxiv_id>/
 编译修复：脚本先报错，Codex 或人工根据日志修。
 ```
 
-DeepSeek API 模式里，大模型主要参与 `workspace/arxiv_translation/work/<arxiv_id>/zh/` 中英文段落的翻译。Codex 模式里，大模型还可以额外参与 LaTeX 结构修复、术语统一、质量抽查和重新编译。
+DeepSeek API 模式里，大模型主要参与 `workflows/arxiv_translation/tmp/work/<arxiv_id>/zh/` 中英文段落的翻译。Codex 模式里，大模型还可以额外参与 LaTeX 结构修复、术语统一、质量抽查和重新编译。
 
 ## Codex 流水线和 DeepSeek API 流水线的区别
 
@@ -455,13 +455,13 @@ prepare
 两条流水线共用同一个工程结构，也就是说最终都会修改：
 
 ```text
-workspace/arxiv_translation/work/<arxiv_id>/zh/
+workflows/arxiv_translation/tmp/work/<arxiv_id>/zh/
 ```
 
 也都会通过：
 
 ```bash
-conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py build <arxiv_id>
+conda run -n arxiv_translate python -m src.translate <arxiv_id>  # 注：cd workflows/arxiv_translation 后运行
 ```
 
 生成中文 PDF。
@@ -482,8 +482,8 @@ conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translat
 Codex 流水线可使用类似提示：
 
 ```text
-请按 workspace/arxiv_translation/work/<arxiv_id>/notes/translation_rules.md 翻译
-workspace/arxiv_translation/work/<arxiv_id>/zh 中的 LaTeX 源码。
+请按 workflows/arxiv_translation/tmp/work/<arxiv_id>/notes/translation_rules.md 翻译
+workflows/arxiv_translation/tmp/work/<arxiv_id>/zh 中的 LaTeX 源码。
 
 要求：
 1. 保留公式、引用、label/ref/cite/url、图片路径、表格结构和 BibTeX key；
@@ -503,7 +503,7 @@ workflows/arxiv_translation/templates/deepseek_system_prompt.md
 单篇论文术语规则在：
 
 ```text
-workspace/arxiv_translation/work/<arxiv_id>/notes/translation_rules.md
+workflows/arxiv_translation/tmp/work/<arxiv_id>/notes/translation_rules.md
 ```
 
 本地脚本会把单篇规则追加到系统提示词后面，再发送需要翻译的 LaTeX 片段。
@@ -643,7 +643,7 @@ env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
 ### 验证完整链路
 
 ```bash
-conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py doctor
+conda run -n arxiv_translate python -m src.translate  # 注：cd workflows/arxiv_translation 后运行
 ```
 
 输出应包含：
@@ -673,33 +673,30 @@ xeCJK.sty: /data/texlive/2026/texmf-dist/tex/xelatex/xecjk/xeCJK.sty
 
 ## 本项目常用 LaTeX 命令
 
-初始化单篇论文：
+跑完整条流水线（下载源码/翻译/编译/落产物，单条命令）：
 
 ```bash
-conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py prepare <pdf>
+cd workflows/arxiv_translation
+conda run -n arxiv_translate python -m src.translate <arxiv_id>
+# 或用本地 PDF 作输入：
+conda run -n arxiv_translate python -m src.translate /path/to/paper.pdf
 ```
 
-编译已翻译的中文 LaTeX 工程：
+直接在某篇中文工程目录中手动编译（用于调试 LaTeX 问题）：
 
 ```bash
-conda run -n arxiv_translate python workflows/arxiv_translation/scripts/translate_arxiv_pdf.py build <arxiv_id>
-```
-
-直接在某篇中文工程目录中手动编译：
-
-```bash
-cd workspace/arxiv_translation/work/<arxiv_id>/zh
+cd workflows/arxiv_translation/tmp/work/<arxiv_id>/zh
 latexmk -xelatex -interaction=nonstopmode -halt-on-error main_zh.tex
 ```
 
 清理 LaTeX 中间产物：
 
 ```bash
-cd workspace/arxiv_translation/work/<arxiv_id>/zh
+cd workflows/arxiv_translation/tmp/work/<arxiv_id>/zh
 latexmk -C
 ```
 
-本项目更推荐使用 `translate_arxiv_pdf.py build`，因为它除了编译，还会把 PDF 复制到 `workspace/arxiv_translation/outbox/` 和源 PDF 同目录，并更新元数据。
+本项目推荐使用统一入口 `python -m src.translate <input>`，它会跑完整条流水线（下载/翻译/编译/落产物），把 PDF 复制到 `workflows/arxiv_translation/output/` 和源 PDF 同目录。手动 `latexmk` 仅用于调试。
 
 ## 什么时候需要安装 LaTeX
 

@@ -9,12 +9,13 @@ __pycache__/
 *.key
 
 # Local workflow state, intermediate files, and generated deliverables
-workspace/
+workflows/arxiv_translation/tmp/
+workflows/arxiv_translation/output/
 
 # Local paper corpus and translated PDFs
 papers/
 
-# LaTeX build byproducts that may appear outside workspace/
+# LaTeX build byproducts that may appear outside tmp/
 *.aux
 *.bbl
 *.bcf
