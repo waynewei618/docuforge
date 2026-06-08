@@ -177,7 +177,7 @@ conda run -n arxiv_translate python -m src.translate 2405.17705 --main-only --li
 | pdfTeX 寄存器未定义（`\pdfminorversion` 等） | **预防性**：在 prepare 阶段紧跟 `\documentclass` 注入 `PDFTEX_COMPAT_BLOCK` |
 | `Undefined control sequence` 命中白名单（`\acronym/\Checkmark/\xmark/...`） | 注入 `\providecommand{...}` |
 | 译文里 `\macro中文` 边界 | 自动改写为 `\macro{}中文` |
-| BibTeX 解析失败 | 注释掉 `\bibliographystyle/\bibliography` 块继续编译 |
+| BibTeX 解析失败 | 优先用上游打包的 `.bbl`（zh 或 source 目录里的现成产物）替换 `\bibliography{...}` 为 `\input{xxx.bbl}` 保留引用；找不到 `.bbl` 时才注释掉整段继续编译 |
 | XeTeXglyph 兼容报错 | 注释 `inputenc/fontenc` 等遗留编码包 |
 
 未知错误会输出可手动补齐的 `tlmgr install <pkg>` 建议（如果是缺包）。

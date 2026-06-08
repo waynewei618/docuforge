@@ -263,8 +263,74 @@ def _normalize_cjk_adjacent_macros(tex_root: Path, commands: list[str]) -> bool:
     return changed
 
 
+def _find_prebuilt_bbl(main_tex: Path, bib_names: list[str]) -> Path | None:
+    """在 main_tex 同目录及其 source 兄弟目录里，找一个预生成的非空 .bbl。
+
+    优先匹配 \\bibliography{xxx} 中列出的名字，找不到再回退到目录里任意 .bbl。
+    """
+    zh_dir = main_tex.parent
+    work_dir = zh_dir.parent
+    source_dir = work_dir / "source"
+
+    candidates: list[Path] = []
+    for stem in bib_names:
+        for d in (zh_dir, source_dir):
+            p = d / f"{stem}.bbl"
+            if p.exists():
+                candidates.append(p)
+    for d in (zh_dir, source_dir):
+        if d.exists():
+            candidates.extend(sorted(d.glob("*.bbl")))
+
+    seen: set[Path] = set()
+    for bbl in candidates:
+        if bbl in seen:
+            continue
+        seen.add(bbl)
+        try:
+            if bbl.stat().st_size > 0 and "\\bibitem" in bbl.read_text(
+                encoding="utf-8", errors="replace"
+            ):
+                return bbl
+        except OSError:
+            continue
+    return None
+
+
 def _disable_bibliography_in_tex(main_tex: Path) -> bool:
+    """处理 bibtex 失败：优先用预生成 .bbl 兜底，找不到才注释掉整段。"""
     text = main_tex.read_text(encoding="utf-8", errors="replace")
+    pattern = re.compile(
+        r"\\bibliographystyle\{[^}]+\}\s*\\bibliography\{([^}]+)\}",
+        flags=re.MULTILINE,
+    )
+    match = pattern.search(text)
+    if match is None:
+        return _comment_out_bibliography(main_tex, text)
+
+    bib_names = [s.strip() for s in match.group(1).split(",") if s.strip()]
+    bbl = _find_prebuilt_bbl(main_tex, bib_names)
+    if bbl is None:
+        return _comment_out_bibliography(main_tex, text)
+
+    # 把 .bbl 复制到 main_tex 同目录（如果不在那里），改写引用为 \input{...bbl}
+    target_bbl = main_tex.parent / bbl.name
+    if bbl.resolve() != target_bbl.resolve():
+        target_bbl.write_bytes(bbl.read_bytes())
+
+    replacement = (
+        "% Auto fallback: bibtex failed; inlined pre-built bbl to preserve citations.\n"
+        f"\\input{{{target_bbl.stem}.bbl}}"
+    )
+    new_text = pattern.sub(replacement, text, count=1)
+    if new_text == text:
+        return _comment_out_bibliography(main_tex, text)
+    main_tex.write_text(new_text, encoding="utf-8")
+    return True
+
+
+def _comment_out_bibliography(main_tex: Path, text: str) -> bool:
+    """最后的兜底：把 \\bibliographystyle/\\bibliography 整段注释掉。"""
     changed = False
     pattern = re.compile(
         r"\n\\bibliographystyle\{[^}]+\}\s*\\bibliography\{[^}]+\}\n",
