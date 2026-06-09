@@ -24,11 +24,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output-dir", default=str(OUTPUT_DEFAULT),
         help=f"产物目录，默认 {OUTPUT_DEFAULT}",
     )
-    p.add_argument(
-        "--backend", choices=["deepseek", "claude", "agy"], default="agy",
-        help="翻译后端：agy（默认；在 Antigravity 内调 agy -p）/ deepseek（离线终端走 DeepSeek API） / claude（在 Claude Code 内调 claude -p）",
-    )
     p.add_argument("--force", action="store_true", help="即使产物已存在也强制重做")
+    p.add_argument("--prepare", action="store_true", help="【Agent 异步协作模式】仅解包 LaTeX 并导出待翻译的 JSON 文本")
+    p.add_argument("--compile", action="store_true", help="【Agent 异步协作模式】仅读取已翻译好的 JSON 写回并编译 PDF")
 
     return p
 
@@ -36,10 +34,15 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
 
+    if args.prepare and args.compile:
+        print("[error] 参数冲突：--prepare 与 --compile 不能同时使用", file=sys.stderr)
+        return 1
+
     opts = PipelineOptions(
-        backend=args.backend,
         output_dir=Path(args.output_dir),
         force=args.force,
+        prepare_only=args.prepare,
+        compile_only=args.compile,
     )
 
     result = run_pipeline(args.input, opts)

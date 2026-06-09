@@ -430,3 +430,114 @@ def translate_work(
         flush=True,
     )
     return stats
+
+
+def export_chunks_to_json(work: Path, opts: TranslateOptions, project_root: Path) -> Path:
+    """遍历待翻译 TeX 文件，将待翻译 chunk 导出为 chunks_to_translate.json。"""
+    files = _discover_tex_files(work, opts)
+    all_chunks_data = []
+
+    for path in files:
+        original = path.read_text(encoding="utf-8", errors="replace")
+        chunks = collect_chunks(original)
+
+        for index, chunk in enumerate(chunks, start=1):
+            if _should_translate(chunk.text, opts.force):
+                all_chunks_data.append({
+                    "file": _rel(path, work / "zh"),  # 相对 zh 目录的路径
+                    "index": index,
+                    "start": chunk.start,
+                    "end": chunk.end,
+                    "kind": chunk.kind,
+                    "text": chunk.text,
+                    "translated": None
+                })
+
+    out_path = work / "notes" / "chunks_to_translate.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(all_chunks_data, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"[export] 已成功导出待翻译 chunks 至: {_rel(out_path, project_root)}", flush=True)
+    return out_path
+
+
+def import_chunks_from_json(work: Path) -> int:
+    """读取已翻译的 chunks 并逆向替换写入 zh/ 下对应的 TeX 文件。"""
+    in_path = work / "notes" / "chunks_translated.json"
+    if not in_path.exists():
+        in_path = work / "notes" / "chunks_to_translate.json"
+        if not in_path.exists():
+            print("[warn] 未找到 chunks_translated.json 或 chunks_to_translate.json，跳过导入", flush=True)
+            return 0
+
+    try:
+        data = json.loads(in_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"[error] 读取或解析 JSON 失败: {exc}", flush=True)
+        return 0
+
+    # 按文件分组
+    by_file: dict[str, list[dict[str, object]]] = {}
+    for item in data:
+        file_name = item.get("file")
+        if file_name and isinstance(file_name, str):
+            by_file.setdefault(file_name, []).append(item)
+
+    updated_files = 0
+    backup_stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    for rel_file, items in by_file.items():
+        file_path = work / "zh" / rel_file
+        if not file_path.exists():
+            print(f"[warn] 要写回的文件不存在: {file_path}", flush=True)
+            continue
+
+        original = file_path.read_text(encoding="utf-8", errors="replace")
+
+        # 按照 start 从大到小排序，从文件后部逆向替换，避免替换后字符长度变化引起前文索引偏移
+        valid_items = []
+        for item in items:
+            start = item.get("start")
+            end = item.get("end")
+            if isinstance(start, int) and isinstance(end, int):
+                valid_items.append(item)
+
+        valid_items.sort(key=lambda x: x["start"], reverse=True)
+
+        parts = []
+        cursor = len(original)
+        changed = False
+
+        for item in valid_items:
+            translated = item.get("translated")
+            start = item["start"]
+            end = item["end"]
+            text_val = item.get("text", "")
+
+            # 只有当 translated 存在且不为空，且与原文不同时才进行替换
+            if isinstance(translated, str) and translated.strip():
+                # 提取 text command 的内容规范化（如果是 text command）
+                kind = item.get("kind", "paragraph")
+                if kind in TEXT_COMMANDS:
+                    translated = _unwrap_text_command(translated)
+
+                parts.append(original[end:cursor])
+                parts.append(translated)
+                cursor = start
+                changed = True
+            else:
+                # 保持原样
+                parts.append(original[end:cursor])
+                parts.append(text_val if isinstance(text_val, str) else "")
+                cursor = start
+
+        parts.append(original[:cursor])
+        parts.reverse()
+
+        if changed:
+            _backup_file(file_path, work / "zh", work / "api_backups" / backup_stamp)
+            file_path.write_text("".join(parts), encoding="utf-8")
+            print(f"[import] 已成功写回翻译内容: {rel_file}", flush=True)
+            updated_files += 1
+
+    return updated_files
+

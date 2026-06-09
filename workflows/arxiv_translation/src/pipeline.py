@@ -23,7 +23,7 @@ from .backends import (
     DEFAULT_DEEPSEEK_MODEL,
     build_backend,
 )
-from .tex_translator import TranslateOptions, translate_work
+from .tex_translator import TranslateOptions, translate_work, export_chunks_to_json, import_chunks_from_json
 
 
 # ---------- 路径常量 ----------
@@ -44,9 +44,10 @@ TEMPLATES      = WORKFLOW_ROOT / "templates"
 
 @dataclass
 class PipelineOptions:
-    backend: str = "agy"
     output_dir: Path = OUTPUT_DEFAULT
     force: bool = False
+    prepare_only: bool = False
+    compile_only: bool = False
 
 
 @dataclass
@@ -403,52 +404,27 @@ def collect_output(built_pdf: Path, zh_tex: Path, arxiv_id: str, output_dir: Pat
 
 # ---------- 后端实例化 ----------
 
-def _build_backend_from_opts(opts: PipelineOptions):
-    if opts.backend == "deepseek":
-        api_key = os.environ.get("DEEPSEEK_API_KEY")
-        if not api_key:
-            raise SystemExit("缺少 DEEPSEEK_API_KEY。请先配置该环境变量后再运行。")
-        
-        model = DEFAULT_DEEPSEEK_MODEL
-        timeout = 120
-        retries = 3
-        base_url = DEFAULT_DEEPSEEK_BASE_URL
+def _build_default_backend():
+    api_key = os.environ.get("DEEPSEEK_API_KEY")
+    if not api_key:
+        raise SystemExit("缺少 DEEPSEEK_API_KEY。请先配置该环境变量后再运行。")
 
-        backend = build_backend(
-            "deepseek",
-            api_key=api_key,
-            base_url=base_url,
-            model=model,
-            temperature=0.2,
-            max_tokens=None,
-            timeout=timeout,
-            retries=retries,
-        )
-        return backend, model
+    model = DEFAULT_DEEPSEEK_MODEL
+    timeout = 120
+    retries = 3
+    base_url = DEFAULT_DEEPSEEK_BASE_URL
 
-    if opts.backend == "claude":
-        model = os.environ.get("CLAUDE_CODE_SUBAGENT_MODEL") or None
-        backend = build_backend(
-            "claude",
-            model=model,
-            timeout=300,
-            retries=2,
-        )
-        model_label = model or "claude-default"
-        return backend, model_label
-
-    if opts.backend == "agy":
-        model = os.environ.get("AGY_SUBAGENT_MODEL") or None
-        backend = build_backend(
-            "agy",
-            model=model,
-            timeout=300,
-            retries=2,
-        )
-        model_label = model or "agy-default"
-        return backend, model_label
-
-    raise SystemExit(f"未知 backend: {opts.backend}（可选: deepseek / claude / agy）")
+    backend = build_backend(
+        "deepseek",
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
+        temperature=0.2,
+        max_tokens=None,
+        timeout=timeout,
+        retries=retries,
+    )
+    return backend, model
 
 
 # ---------- 主入口 ----------
@@ -457,11 +433,26 @@ def run_pipeline(input_value: str, opts: PipelineOptions) -> PipelineResult:
     arxiv_id, source_pdf_hint = resolve_input(input_value)
     output_dir = opts.output_dir.expanduser().resolve()
 
-    # 幂等：已存在中文 PDF 且非 force，直接跳过翻译/编译
+    # 如果是编译阶段，我们不检查 final_zh 是否已存在，因为用户明确发送了 compile 指令，通常是在更新了翻译后
+    if opts.compile_only:
+        work = WORK_ROOT / arxiv_id
+        zh_main = work / "zh" / "main_zh.tex"
+        if not zh_main.exists():
+            raise SystemExit(f"工作目录中未找到 TeX 文件 {zh_main}，请先运行 --prepare")
+
+        print(f"[compile] 开始从 JSON 导入译文：{arxiv_id}", flush=True)
+        import_chunks_from_json(work)
+
+        built_pdf = build_chinese_pdf(work, "main_zh.tex")
+        chinese_out = collect_output(built_pdf, zh_main, arxiv_id, output_dir)
+        return PipelineResult(
+            arxiv_id=arxiv_id, english_pdf=None, chinese_pdf=chinese_out, work_dir=work,
+        )
+
+    # 幂等：已存在中文 PDF 且非 force，直接跳过翻译/编译（非 prepare_only 时生效）
     final_zh = output_dir / f"{arxiv_id}_zh.pdf"
-    if not opts.force and final_zh.exists():
+    if not opts.force and final_zh.exists() and not opts.prepare_only:
         print(f"[skip] {arxiv_id}: 中文 PDF 已存在 {_rel(final_zh)}（用 --force 重做）", flush=True)
-        # 仍要确保英文 PDF 在位
         try:
             _, english_out = ensure_english_pdf(arxiv_id, source_pdf_hint, output_dir)
         except SystemExit:
@@ -478,13 +469,27 @@ def run_pipeline(input_value: str, opts: PipelineOptions) -> PipelineResult:
     # 2. 准备工作目录（解包 e-print / 初始化 zh/main_zh.tex）
     zh_main = prepare_work(arxiv_id, source_pdf, work, opts)
 
+    # 如果是只准备阶段，我们在这里导出 chunks 后直接返回
+    if opts.prepare_only:
+        translate_opts = TranslateOptions(
+            main="main_zh.tex",
+            main_only=False,
+            limit_chunks=None,
+            force=opts.force,
+            sleep=0.0,
+        )
+        export_chunks_to_json(work, translate_opts, PROJECT_ROOT)
+        return PipelineResult(
+            arxiv_id=arxiv_id, english_pdf=english_out, chinese_pdf=None, work_dir=work,
+        )
+
     # 3. 翻译
-    backend, backend_model = _build_backend_from_opts(opts)
+    backend, backend_model = _build_default_backend()
     translate_opts = TranslateOptions(
         main="main_zh.tex",
         main_only=False,
         limit_chunks=None,
-        force=False,
+        force=opts.force,
         sleep=0.0,
     )
     translate_work(
