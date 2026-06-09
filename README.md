@@ -51,9 +51,6 @@ conda run -n docuforge python -m src.translate <arxiv_id> [选项]
 | `--no-source` | 不下载 arXiv e-print 源码（仅 PDF 抽取降级） |
 | `--json` | 机器可读输出 |
 
-大模型与控制通用选项：`--model` (模型名)，`--timeout` (超时秒数)，`--retries` (重试次数)。
-
-API 专属选项：`--api-key` (秘钥)，`--base-url` (Base URL)，`--temperature` (温度，默认 0.2)，`--max-tokens` (最大 token)，`--sleep` (休眠秒数，默认 0.0)。
 
 ### 示例
 

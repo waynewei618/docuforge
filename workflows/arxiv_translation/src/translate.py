@@ -35,18 +35,6 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-source", action="store_true", help="不下载 arXiv e-print 源码")
     p.add_argument("--json", action="store_true", dest="json_out", help="机器可读输出")
 
-    g_llm = p.add_argument_group("大模型与翻译控制（通用）")
-    g_llm.add_argument("--model", help="大模型名称。如不指定，agy/claude 路由至默认环境变量，deepseek 默认为 deepseek-v4-flash")
-    g_llm.add_argument("--timeout", type=int, help="单次请求超时时间（秒）。默认：deepseek 120, claude/agy 300")
-    g_llm.add_argument("--retries", type=int, help="失败重试次数。默认：deepseek 3, claude/agy 2")
-
-    g_api = p.add_argument_group("API 专属选项（一般仅在 API 类后端生效）")
-    g_api.add_argument("--api-key", help="API 秘钥。对 deepseek 优先读取 DEEPSEEK_API_KEY 环境变量")
-    g_api.add_argument("--base-url", help="API base URL。对 deepseek 默认为 https://api.deepseek.com")
-    g_api.add_argument("--temperature", type=float, default=0.2, help="大模型采样温度，默认 0.2")
-    g_api.add_argument("--max-tokens", type=int, help="限制单次响应的最大 token 数")
-    g_api.add_argument("--sleep", type=float, default=0.0, help="单次翻译请求后的延迟休眠时间（秒），默认 0.0")
-
     return p
 
 
@@ -61,14 +49,6 @@ def main(argv: list[str] | None = None) -> int:
         limit_chunks=args.limit_chunks,
         main_only=args.main_only,
         no_source=args.no_source,
-        model=args.model,
-        timeout=args.timeout,
-        retries=args.retries,
-        api_key=args.api_key,
-        base_url=args.base_url,
-        temperature=args.temperature,
-        max_tokens=args.max_tokens,
-        sleep=args.sleep,
     )
 
     result = run_pipeline(args.input, opts)
