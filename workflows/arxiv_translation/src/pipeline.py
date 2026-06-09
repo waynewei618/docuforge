@@ -44,7 +44,7 @@ TEMPLATES      = WORKFLOW_ROOT / "templates"
 
 @dataclass
 class PipelineOptions:
-    backend: str = "deepseek"
+    backend: str = "agy"
     output_dir: Path = OUTPUT_DEFAULT
     main: str = "main_zh.tex"
     force: bool = False

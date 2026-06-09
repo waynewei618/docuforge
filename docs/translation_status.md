@@ -6,7 +6,7 @@
 
 - 有发表信息论文优先级已完成；剩余任务全部来自 `未查到正式发表信息/`。
 - 每篇优先使用 arXiv LaTeX 源码，保留原图、公式、引用和表格结构。
-- 翻译后端通过 `--backend {deepseek,claude,agy}` 显式指定：离线终端走 DeepSeek API，Claude Code 内显式走 `--backend claude` 调 `claude -p`，Antigravity 内显式走 `--backend agy` 调 `agy -p`。
+- 翻译后端默认使用 agy（在 Antigravity 内无需指定）；离线终端显式走 `--backend deepseek` 调 DeepSeek API；Claude Code 内显式走 `--backend claude` 调 `claude -p`。
 - 中文 PDF 同时落在 `workflows/arxiv_translation/output/<id>_zh.pdf` 与源英文 PDF 同目录。
 
 ## 当前状态
@@ -79,12 +79,25 @@
 
 > 入口统一：`cd workflows/arxiv_translation`，然后 `python -m src.translate <arxiv_id> [选项]`。无子命令，整条流水线（下载/翻译/编译/落产物）一条命令跑完。
 
-DeepSeek 后端（默认，离线终端）：
+Antigravity subagent 后端（默认，在 Antigravity 内）：
+
+```bash
+cd workflows/arxiv_translation
+conda run -n docuforge python -m src.translate <arxiv_id>
+```
+
+或者显式指定 `--backend agy`：
+
+```bash
+conda run -n docuforge python -m src.translate <arxiv_id> --backend agy
+```
+
+DeepSeek 后端（离线终端）：
 
 ```bash
 export DEEPSEEK_API_KEY="sk-..."
 cd workflows/arxiv_translation
-conda run -n docuforge python -m src.translate <arxiv_id>
+conda run -n docuforge python -m src.translate <arxiv_id> --backend deepseek
 ```
 
 Claude Code subagent 后端（在 Claude Code 内）：
@@ -92,13 +105,6 @@ Claude Code subagent 后端（在 Claude Code 内）：
 ```bash
 cd workflows/arxiv_translation
 conda run -n docuforge python -m src.translate <arxiv_id> --backend claude
-```
-
-Antigravity subagent 后端（在 Antigravity 内）：
-
-```bash
-cd workflows/arxiv_translation
-conda run -n docuforge python -m src.translate <arxiv_id> --backend agy
 ```
 
 完整接口与选项见 [arxiv_translation.md](arxiv_translation.md) 与项目根 [README.md](../README.md)。

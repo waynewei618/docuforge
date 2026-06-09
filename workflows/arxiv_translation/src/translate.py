@@ -25,8 +25,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help=f"产物目录，默认 {OUTPUT_DEFAULT}",
     )
     p.add_argument(
-        "--backend", choices=["deepseek", "claude", "agy"], default="deepseek",
-        help="翻译后端：deepseek（默认；离线终端走 DeepSeek API）/ claude（在 Claude Code 内调 claude -p） / agy（在 Antigravity 内调 agy -p）",
+        "--backend", choices=["deepseek", "claude", "agy"], default="agy",
+        help="翻译后端：agy（默认；在 Antigravity 内调 agy -p）/ deepseek（离线终端走 DeepSeek API） / claude（在 Claude Code 内调 claude -p）",
     )
     p.add_argument("--main", default="main_zh.tex", help="中文主 TeX 文件名")
     p.add_argument("--force", action="store_true", help="即使产物已存在也强制重做")

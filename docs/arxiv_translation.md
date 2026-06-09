@@ -66,7 +66,7 @@ conda run -n docuforge python -m src.translate <input> [选项]
 | 选项 | 默认 | 说明 |
 |---|---|---|
 | `--output-dir <dir>` | `./output/` | 产物目录 |
-| `--backend {deepseek,claude,agy}` | `deepseek` | 翻译后端 |
+| `--backend {deepseek,claude,agy}` | `agy` | 翻译后端 |
 | `--main <name>` | `main_zh.tex` | 中文主 TeX 文件名 |
 | `--force` | — | 即使 `output/<id>_zh.pdf` 存在也强制重做 |
 | `--limit-chunks <N>` | — | 每文件至多翻译 N 个 chunk（调试用） |
@@ -105,14 +105,31 @@ Agy 专属（仅 `--backend agy` 时生效）：
 
 ## 翻译后端
 
-### DeepSeek（默认）
+### Antigravity subagent (agy)（默认）
+
+适合在 Antigravity 内运行时复用当前会话。调用 `agy -p` headless 模式：
+
+```bash
+cd workflows/arxiv_translation
+conda run -n docuforge python -m src.translate 2405.17705
+```
+
+或者显式指定 `--backend agy`：
+
+```bash
+conda run -n docuforge python -m src.translate 2405.17705 --backend agy
+```
+
+模型解析优先级：`--agy-model` > `AGY_SUBAGENT_MODEL` 环境变量 > `agy` 默认。不需要单独配 API key，认证自动继承 Antigravity 的 session。
+
+### DeepSeek
 
 适合离线终端批量翻译。要求 `DEEPSEEK_API_KEY` 环境变量：
 
 ```bash
 export DEEPSEEK_API_KEY="sk-..."
 cd workflows/arxiv_translation
-conda run -n docuforge python -m src.translate 2405.17705
+conda run -n docuforge python -m src.translate 2405.17705 --backend deepseek
 ```
 
 通过 OpenAI 兼容的 `chat/completions` 接口调 DeepSeek，自动重试、按 chunk 串行。
@@ -128,18 +145,7 @@ conda run -n docuforge python -m src.translate 2405.17705 --backend claude
 
 模型解析优先级：`--claude-model` > `CLAUDE_CODE_SUBAGENT_MODEL` 环境变量 > `claude` 默认。不需要单独配 API key，认证自动继承 Claude Code 的 session。
 
-### Antigravity subagent (agy)
-
-适合在 Antigravity 内运行时复用当前会话。调用 `agy -p` headless 模式：
-
-```bash
-cd workflows/arxiv_translation
-conda run -n docuforge python -m src.translate 2405.17705 --backend agy
-```
-
-模型解析优先级：`--agy-model` > `AGY_SUBAGENT_MODEL` 环境变量 > `agy` 默认。不需要单独配 API key，认证自动继承 Antigravity 的 session。
-
-> **何时选哪个**：离线终端、批量、不需要复用对话上下文 → `deepseek`；在 Claude Code 内希望走其 subagent 链 → `claude`；在 Antigravity 内希望走其 subagent 链 → `agy`。三个后端共享同一份 chunk 切分与 `system_prompt`，翻译质量主要取决于模型本身。
+> **何时选哪个**：在 Antigravity 内运行希望走其 subagent 链 → 默认 `agy` 即可；离线终端、批量、不需要复用对话上下文 → `deepseek`；在 Claude Code 内希望走其 subagent 链 → `claude`。三个后端共享同一份 chunk 切分与 `system_prompt`，翻译质量主要取决于模型本身。
 
 ## 端到端示例
 
