@@ -34,7 +34,7 @@ papers/                                 # 当前样例/研究资料库
 
 ```bash
 cd workflows/arxiv_translation
-conda run -n arxiv_translate python -m src.translate <arxiv_id> [选项]
+conda run -n docuforge python -m src.translate <arxiv_id> [选项]
 ```
 
 `<arxiv_id>` 接受裸 ID（`2405.17705`）、带版本（`2405.17705v2`）、arXiv URL，或本地 PDF 路径。
@@ -44,7 +44,7 @@ conda run -n arxiv_translate python -m src.translate <arxiv_id> [选项]
 | 选项 | 说明 |
 |---|---|
 | `--output-dir <dir>` | 产物目录，默认 `./output/`（即 `workflows/arxiv_translation/output/`） |
-| `--backend {deepseek,claude}` | 翻译后端，默认 `deepseek`（离线终端走 DeepSeek API）；在 Claude Code 内显式 `--backend claude` 走 `claude -p` subagent，模型由 `CLAUDE_CODE_SUBAGENT_MODEL` 环境变量控制 |
+| `--backend {deepseek,claude,agy}` | 翻译后端，默认 `deepseek`（离线终端走 DeepSeek API）；在 Claude Code 内显式 `--backend claude` 走 `claude -p`；在 Antigravity 内显式 `--backend agy` 走 `agy -p` |
 | `--force` | 即使 `output/<id>_zh.pdf` 已存在也强制重做 |
 | `--limit-chunks <N>` | 每文件至多翻译 N 个 chunk（调试用） |
 | `--main-only` | 只翻译 `--main`（默认 `main_zh.tex`）一个文件 |
@@ -55,24 +55,29 @@ DeepSeek 专属：`--deepseek-{model,base-url,temperature,max-tokens,api-key,tim
 
 Claude 专属：`--claude-{model,timeout,retries}`。
 
+Agy 专属：`--agy-{model,timeout,retries}`。
+
 ### 示例
 
 ```bash
 # 1. DeepSeek 默认流程
 export DEEPSEEK_API_KEY="sk-..."
-conda run -n arxiv_translate python -m src.translate 2405.17705
+conda run -n docuforge python -m src.translate 2405.17705
 
 # 2. 用本地 PDF 作输入
-conda run -n arxiv_translate python -m src.translate /path/to/paper.pdf
+conda run -n docuforge python -m src.translate /path/to/paper.pdf
 
 # 3. 自定义输出目录
-conda run -n arxiv_translate python -m src.translate 2405.17705 --output-dir /tmp/out
+conda run -n docuforge python -m src.translate 2405.17705 --output-dir /tmp/out
 
 # 4. Claude Code subagent 后端（在 Claude Code 内运行）
-conda run -n arxiv_translate python -m src.translate 2405.17705 --backend claude
+conda run -n docuforge python -m src.translate 2405.17705 --backend claude
 
-# 5. 重做（强制重跑翻译+编译）
-conda run -n arxiv_translate python -m src.translate 2405.17705 --force
+# 5. Antigravity subagent 后端（在 Antigravity 内运行）
+conda run -n docuforge python -m src.translate 2405.17705 --backend agy
+
+# 6. 重做（强制重跑翻译+编译）
+conda run -n docuforge python -m src.translate 2405.17705 --force
 ```
 
 幂等：再次跑同一个 ID 默认会跳过；用 `--force` 重做。中间产物保留在 `tmp/work/<id>/`，方便 debug。
@@ -87,6 +92,6 @@ conda run -n arxiv_translate python -m src.translate 2405.17705 --force
 ## 环境约定
 
 - LaTeX 工具链：官方 TeX Live 2026 (`scheme-full`)，装于 `$HOME/texlive/2026`，通过 `~/.bashrc` 加入 `PATH`；所有 conda 环境直接调用 `xelatex` / `latexmk` / `tlmgr`。不使用 apt 版 TeX Live，不在 conda 环境里装 tectonic 或 texlive。详见 [LaTeX 环境配置](docs/latex_guide.md#本项目-latex-环境配置)。
-- Python 能力环境：每能力一个独立 conda 环境，只装该能力的 Python 依赖。当前已有 `arxiv_translate`（arXiv 论文 → 中文 PDF）。
+- Python 环境：全项目共用一个以项目命名的 conda 环境，只装本项目的 Python 依赖。当前环境名为 `docuforge`。
 - 不把 API key 写入项目文件；DeepSeek 默认读取 `DEEPSEEK_API_KEY`。
 - LaTeX 宏包用 `tlmgr install <pkg>` / `tlmgr update --self --all` 维护。通用的 pip / conda 包管理约定（国内源临时配置、取消代理等）见全局 agent 规则。

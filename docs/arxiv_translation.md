@@ -51,7 +51,7 @@ metadata.json        # 论文 ID、来源、状态等元数据
 
 ```bash
 cd workflows/arxiv_translation
-conda run -n arxiv_translate python -m src.translate <input> [选项]
+conda run -n docuforge python -m src.translate <input> [选项]
 ```
 
 `<input>` 接受：
@@ -112,7 +112,7 @@ Agy 专属（仅 `--backend agy` 时生效）：
 ```bash
 export DEEPSEEK_API_KEY="sk-..."
 cd workflows/arxiv_translation
-conda run -n arxiv_translate python -m src.translate 2405.17705
+conda run -n docuforge python -m src.translate 2405.17705
 ```
 
 通过 OpenAI 兼容的 `chat/completions` 接口调 DeepSeek，自动重试、按 chunk 串行。
@@ -123,7 +123,7 @@ conda run -n arxiv_translate python -m src.translate 2405.17705
 
 ```bash
 cd workflows/arxiv_translation
-conda run -n arxiv_translate python -m src.translate 2405.17705 --backend claude
+conda run -n docuforge python -m src.translate 2405.17705 --backend claude
 ```
 
 模型解析优先级：`--claude-model` > `CLAUDE_CODE_SUBAGENT_MODEL` 环境变量 > `claude` 默认。不需要单独配 API key，认证自动继承 Claude Code 的 session。
@@ -134,7 +134,7 @@ conda run -n arxiv_translate python -m src.translate 2405.17705 --backend claude
 
 ```bash
 cd workflows/arxiv_translation
-conda run -n arxiv_translate python -m src.translate 2405.17705 --backend agy
+conda run -n docuforge python -m src.translate 2405.17705 --backend agy
 ```
 
 模型解析优先级：`--agy-model` > `AGY_SUBAGENT_MODEL` 环境变量 > `agy` 默认。不需要单独配 API key，认证自动继承 Antigravity 的 session。
@@ -148,24 +148,24 @@ cd workflows/arxiv_translation
 
 # 1. 标准跑法（DeepSeek 后端）
 export DEEPSEEK_API_KEY="sk-..."
-conda run -n arxiv_translate python -m src.translate 2405.17705
+conda run -n docuforge python -m src.translate 2405.17705
 # → output/2405.17705_en.pdf, output/2405.17705_zh.pdf
 
 # 2. 用本地 PDF（自动从文件名识别 ID）
-conda run -n arxiv_translate python -m src.translate \
+conda run -n docuforge python -m src.translate \
   ../../papers/auto_drive_3dgs/01_scene_reconstruction_dynamic_modeling/2502.14235_OG-Gaussian_Occupancy_Based_Street_Gaussians_for_Autonomous_Driving.pdf
 
 # 3. 输出到自定义目录
-conda run -n arxiv_translate python -m src.translate 2405.17705 --output-dir /tmp/x
+conda run -n docuforge python -m src.translate 2405.17705 --output-dir /tmp/x
 
 # 4. Claude Code subagent 后端
-conda run -n arxiv_translate python -m src.translate 2405.17705 --backend claude
+conda run -n docuforge python -m src.translate 2405.17705 --backend claude
 
 # 5. 强制重做
-conda run -n arxiv_translate python -m src.translate 2405.17705 --force
+conda run -n docuforge python -m src.translate 2405.17705 --force
 
 # 6. 仅翻译主 TeX 的前 5 个 chunk（调试用）
-conda run -n arxiv_translate python -m src.translate 2405.17705 --main-only --limit-chunks 5
+conda run -n docuforge python -m src.translate 2405.17705 --main-only --limit-chunks 5
 ```
 
 ## 幂等与缓存

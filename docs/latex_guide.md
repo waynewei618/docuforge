@@ -461,7 +461,7 @@ workflows/arxiv_translation/tmp/work/<arxiv_id>/zh/
 也都会通过：
 
 ```bash
-conda run -n arxiv_translate python -m src.translate <arxiv_id>  # 注：cd workflows/arxiv_translation 后运行
+conda run -n docuforge python -m src.translate <arxiv_id>  # 注：cd workflows/arxiv_translation 后运行
 ```
 
 生成中文 PDF。
@@ -517,10 +517,8 @@ LaTeX 工具链（一份，全局共享）
   └─ $HOME/texlive/2026          ← 官方 install-tl 装的 TeX Live 2026 scheme-full
   └─ 通过 PATH 暴露给所有 shell 和 conda 环境
 
-Python 能力环境（每能力一个 conda env）
-  └─ arxiv_translate              ← 本能力的 Python 依赖（pymupdf / pypdf / rich / ...）
-  └─ pdf_translate                ← 规划中
-  └─ ...
+Python 环境（全局共享，以项目命名）
+  └─ docuforge                    ← 本项目的所有 Python 依赖（pymupdf / pypdf / rich / ...）
 ```
 
 任何能力环境里都**不要装 TeX Live 或 tectonic 这类 LaTeX 引擎**。脚本通过 PATH 直接调 `xelatex` / `latexmk` / `tlmgr` 即可。
@@ -624,34 +622,34 @@ tlmgr revision ...
 TeX Live ... version 2026
 ```
 
-### 安装 Python 能力环境
+### 安装 Python 共用环境
 
-LaTeX 工具链装好后，再准备 `arxiv_translate` conda 环境（只装 Python 依赖）：
+LaTeX 工具链装好后，再准备 `docuforge` conda 环境（只装 Python 依赖）：
 
 ```bash
 # 创建环境
-conda create -n arxiv_translate python=3.11 -y
+conda create -n docuforge python=3.11 -y
 
 # 国内源临时装包（不写入全局配置）
 env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
-  conda run -n arxiv_translate python -m pip install \
+  conda run -n docuforge python -m pip install \
   -i https://pypi.tuna.tsinghua.edu.cn/simple \
   pymupdf pypdf rich pydantic jinja2
 ```
 
-**禁止**在 `arxiv_translate`（或任何能力环境）里装 `tectonic` / `texlive-core` 等 LaTeX 包——LaTeX 只走 `$HOME/texlive/2026` 这一份。
+**禁止**在 `docuforge` 环境里装 `tectonic` / `texlive-core` 等 LaTeX 包——LaTeX 只走 `$HOME/texlive/2026` 这一份。
 
 ### 验证完整链路
 
 ```bash
-conda run -n arxiv_translate python -m src.translate  # 注：cd workflows/arxiv_translation 后运行
+conda run -n docuforge python -m src.translate  # 注：cd workflows/arxiv_translation 后运行
 ```
 
 输出应包含：
 
 ```text
 conda:    /home/.../miniconda3/bin/conda
-python:   /home/.../miniconda3/envs/arxiv_translate/bin/python
+python:   /home/.../miniconda3/envs/docuforge/bin/python
 xelatex:  $HOME/texlive/2026/bin/x86_64-linux/xelatex
 latexmk:  $HOME/texlive/2026/bin/x86_64-linux/latexmk
 pdftotext: /usr/bin/pdftotext
@@ -659,7 +657,7 @@ ctex.sty: $HOME/texlive/2026/texmf-dist/tex/latex/ctex/ctex.sty
 xeCJK.sty: $HOME/texlive/2026/texmf-dist/tex/xelatex/xecjk/xeCJK.sty
 ```
 
-关键点：`python` 来自 conda 能力环境，`xelatex` / `latexmk` / `*.sty` 全部来自 `$HOME/texlive/2026`，**两层职责分清**。
+关键点：`python` 来自 conda 共享环境，`xelatex` / `latexmk` / `*.sty` 全部来自 `$HOME/texlive/2026`，**两层职责分清**。
 
 ### 日常维护
 
@@ -678,9 +676,9 @@ xeCJK.sty: $HOME/texlive/2026/texmf-dist/tex/xelatex/xecjk/xeCJK.sty
 
 ```bash
 cd workflows/arxiv_translation
-conda run -n arxiv_translate python -m src.translate <arxiv_id>
+conda run -n docuforge python -m src.translate <arxiv_id>
 # 或用本地 PDF 作输入：
-conda run -n arxiv_translate python -m src.translate /path/to/paper.pdf
+conda run -n docuforge python -m src.translate /path/to/paper.pdf
 ```
 
 直接在某篇中文工程目录中手动编译（用于调试 LaTeX 问题）：
