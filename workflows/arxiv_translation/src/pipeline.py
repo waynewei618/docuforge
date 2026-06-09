@@ -42,6 +42,38 @@ TEMPLATES      = WORKFLOW_ROOT / "templates"
 
 # ---------- 结果 dataclass ----------
 
+import xml.etree.ElementTree as ET
+import re
+
+_TITLE_SLUG_CACHE = {}
+
+def get_arxiv_title_slug(arxiv_id: str) -> str:
+    if arxiv_id in _TITLE_SLUG_CACHE:
+        return _TITLE_SLUG_CACHE[arxiv_id]
+        
+    clean_id = arxiv_id.split('v')[0] if 'v' in arxiv_id else arxiv_id
+    url = f"http://export.arxiv.org/api/query?id_list={clean_id}"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'paper-translate/0.1'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            xml_data = response.read()
+        root = ET.fromstring(xml_data)
+        ns = {'atom': 'http://www.w3.org/2005/Atom'}
+        entry = root.find('atom:entry', ns)
+        if entry is not None:
+            title_node = entry.find('atom:title', ns)
+            if title_node is not None and title_node.text:
+                title = title_node.text
+                title = re.sub(r'\s+', ' ', title).strip()
+                slug = re.sub(r'[^a-zA-Z0-9]+', '_', title).strip('_')
+                _TITLE_SLUG_CACHE[arxiv_id] = slug
+                return slug
+    except Exception as e:
+        print(f"[warn] 无法获取 {arxiv_id} 的标题: {e}", flush=True)
+    
+    _TITLE_SLUG_CACHE[arxiv_id] = ""
+    return ""
+
 @dataclass
 class PipelineOptions:
     output_dir: Path = OUTPUT_DEFAULT
@@ -242,7 +274,7 @@ def _copy_source_tree(src: Path, dst: Path) -> None:
 # ---------- 流水线 stage ----------
 
 def ensure_english_pdf(arxiv_id: str, source_pdf: Path | None, output_dir: Path) -> tuple[Path, Path]:
-    """确定/下载英文 PDF；复制到 output/<id>_en.pdf。"""
+    """确定/下载英文 PDF；复制到 output/<id>_<title>.pdf。"""
     if source_pdf is None:
         source_pdf = _find_source_pdf(arxiv_id)
     if source_pdf is None:
@@ -251,7 +283,9 @@ def ensure_english_pdf(arxiv_id: str, source_pdf: Path | None, output_dir: Path)
             if not download_arxiv_pdf(arxiv_id, source_pdf):
                 raise SystemExit(f"英文 PDF 下载失败：arXiv:{arxiv_id}")
 
-    english_out = output_dir / f"{arxiv_id}_en.pdf"
+    slug = get_arxiv_title_slug(arxiv_id)
+    suffix = f"_{slug}.pdf" if slug else "_en.pdf"
+    english_out = output_dir / f"{arxiv_id}{suffix}"
     _copy_if_needed(source_pdf, english_out)
     return source_pdf, english_out
 
@@ -391,13 +425,15 @@ def build_chinese_pdf(work: Path, main: str) -> Path:
 
 
 def collect_output(built_pdf: Path, zh_tex: Path, arxiv_id: str, output_dir: Path) -> Path:
-    """复制中文 PDF 到 output/<id>_zh.pdf；同时归档到 tmp/outbox/。"""
+    """复制中文 PDF 到 output/<id>_<title>_zh.pdf；同时归档到 tmp/outbox/。"""
     output_dir.mkdir(parents=True, exist_ok=True)
-    chinese_out = output_dir / f"{arxiv_id}_zh.pdf"
+    slug = get_arxiv_title_slug(arxiv_id)
+    suffix = f"_{slug}_zh.pdf" if slug else "_zh.pdf"
+    chinese_out = output_dir / f"{arxiv_id}{suffix}"
     _copy_if_needed(built_pdf, chinese_out)
 
     DEBUG_OUTBOX.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(built_pdf, DEBUG_OUTBOX / f"{arxiv_id}_zh.pdf")
+    shutil.copy2(built_pdf, DEBUG_OUTBOX / f"{arxiv_id}{suffix}")
     shutil.copy2(zh_tex,    DEBUG_OUTBOX / f"{arxiv_id}_zh.tex")
     return chinese_out
 
@@ -450,7 +486,9 @@ def run_pipeline(input_value: str, opts: PipelineOptions) -> PipelineResult:
         )
 
     # 幂等：已存在中文 PDF 且非 force，直接跳过翻译/编译（非 prepare_only 时生效）
-    final_zh = output_dir / f"{arxiv_id}_zh.pdf"
+    slug = get_arxiv_title_slug(arxiv_id)
+    suffix = f"_{slug}_zh.pdf" if slug else "_zh.pdf"
+    final_zh = output_dir / f"{arxiv_id}{suffix}"
     if not opts.force and final_zh.exists() and not opts.prepare_only:
         print(f"[skip] {arxiv_id}: 中文 PDF 已存在 {_rel(final_zh)}（用 --force 重做）", flush=True)
         try:

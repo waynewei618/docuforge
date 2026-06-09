@@ -33,7 +33,7 @@ papers/                                 # 当前样例/研究资料库
 
 ## 主接口
 
-唯一入口（无子命令），从 arXiv ID（或 PDF 路径）到 `outputs/arxiv_translation/<id>_en.pdf` + `outputs/arxiv_translation/<id>_zh.pdf` 一条命令跑完整条流水线：
+唯一入口（无子命令），从 arXiv ID（或 PDF 路径）到 `outputs/arxiv_translation/<id>_<title_slug>.pdf` + `outputs/arxiv_translation/<id>_<title_slug>_zh.pdf` 一条命令跑完整条流水线：
 
 ```bash
 cd workflows/arxiv_translation
@@ -41,6 +41,7 @@ conda run -n docuforge python -m src.translate <arxiv_id> [选项]
 ```
 
 `<arxiv_id>` 接受裸 ID（`2405.17705`）、带版本（`2405.17705v2`）、arXiv URL，或本地 PDF 路径。
+下载的产物会自动通过 arXiv API 提取英文标题并作为文件名后缀。支持多 Agent 原生模型长时协同与原子化增量保存（断点续传、网络容错）。
 
 ### 关键选项
 

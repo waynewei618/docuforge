@@ -355,7 +355,7 @@ workflows/arxiv_translation/tmp/work/<arxiv_id>/
 - `source/`：原始英文源码，尽量不要改；
 - `zh/`：中文翻译工程，翻译和修复都在这里做；
 - `build_zh/`：编译产生的中间文件，不作为主要编辑对象；
-- `outputs/`（位于项目目录下的 `outputs/arxiv_translation/`）：用户感知的最终产物，每篇出 `<id>_en.pdf` 和 `<id>_zh.pdf`。
+- `outputs/`（位于项目目录下的 `outputs/arxiv_translation/`）：用户感知的最终产物，每篇出 `<id>_<title_slug>.pdf` 和 `<id>_<title_slug>_zh.pdf`。
 
 简化流程：
 

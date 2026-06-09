@@ -30,7 +30,7 @@ workflows/arxiv_translation/
     work/<arxiv_id>/                # 单篇论文的完整工程：source/zh/notes/build_zh/...
     outbox/                         # build 阶段的调试归档
     diagnostics/  agent_logs/       # LaTeX 诊断 / 子 agent 日志
-  output/                           # 最终产物（gitignored）：<id>_en.pdf / <id>_zh.pdf
+  output/                           # 最终产物（gitignored）：<id>_<title_slug>.pdf / <id>_<title_slug>_zh.pdf
 ```
 
 `tmp/` 与 `output/` 都不进 git。`tmp/` 是"出问题能复现/调试"的地方，`output/` 是用户感知的最终输出。

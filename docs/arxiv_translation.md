@@ -31,7 +31,7 @@ workflows/arxiv_translation/
     work/<arxiv_id>/              # 单篇论文完整工程：source/zh/notes/build_zh/api_backups
     outbox/                       # build 调试归档（每篇 zh.pdf/zh.tex 副本）
     diagnostics/  agent_logs/     # LaTeX 诊断 / 子 agent 日志
-  output/                         # 最终产物（gitignored）：<id>_en.pdf / <id>_zh.pdf
+  output/                         # 最终产物（gitignored）：<id>_<title_slug>.pdf / <id>_<title_slug>_zh.pdf
 ```
 
 `tmp/work/<arxiv_id>/` 的内部结构：
@@ -66,7 +66,7 @@ conda run -n docuforge python -m src.translate <input> [选项]
 | 选项 | 默认 | 说明 |
 |---|---|---|
 | `--output-dir <dir>` | 项目根目录下的 `outputs/arxiv_translation/` | 产物目录 |
-| `--force` | — | 即使 `outputs/arxiv_translation/<id>_zh.pdf` 存在也强制重做 |
+| `--force` | — | 即使 `outputs/arxiv_translation/<id>_<title_slug>_zh.pdf` 存在也强制重做 |
 | `--prepare` | — | 【Agent 异步协作模式】仅解包并导出待翻译的 JSON 文本 |
 | `--compile` | — | 【Agent 异步协作模式】仅读取翻译好的 JSON 并编译为 PDF |
 
@@ -115,7 +115,7 @@ cd workflows/arxiv_translation
 # 1. 标准跑法（DeepSeek 后端）
 export DEEPSEEK_API_KEY="sk-..."
 conda run -n docuforge python -m src.translate 2405.17705
-# → output/2405.17705_en.pdf, output/2405.17705_zh.pdf
+# → output/2405.17705_<title_slug>.pdf, output/2405.17705_<title_slug>_zh.pdf
 
 # 2. 用本地 PDF（自动从文件名识别 ID）
 conda run -n docuforge python -m src.translate \
@@ -133,7 +133,7 @@ conda run -n docuforge python -m src.translate 2405.17705 --force
 
 ## 幂等与缓存
 
-- 默认看到 `output/<id>_zh.pdf` 已存在就跳过翻译/编译，加 `--force` 强制重跑。
+- 默认看到 `output/<id>_<title_slug>_zh.pdf` 已存在就跳过翻译/编译，加 `--force` 强制重跑。
 - 重跑时 `tmp/work/<id>/` 会被清空并重建（force 路径）；不 force 时复用现有 work 缓存（继续翻译没译完的 chunk）。
 - 每次翻译前会把当前 `zh/<file>.tex` 备份到 `tmp/work/<id>/api_backups/<timestamp>/`，可手动回滚。
 - 编译中间产物 `tmp/work/<id>/build_zh/` 保留，方便 debug。
@@ -141,11 +141,11 @@ conda run -n docuforge python -m src.translate 2405.17705 --force
 ## 翻译流水线内部步骤
 
 1. **resolve_input** — 解析 `<input>` 为 arxiv id（+ 可选源 PDF 路径）
-2. **ensure_english_pdf** — 找本地 PDF 或从 arXiv 下载，复制到 `output/<id>_en.pdf`
+2. **ensure_english_pdf** — 找本地 PDF 或从 arXiv 下载，复制到 `output/<id>_<title_slug>.pdf`
 3. **prepare_work** — 解 e-print.tar.gz、识别主 TeX、注入中文 preamble + pdfTeX 兼容兜底
 4. **translate_work** — 切 chunk、按 backend 调翻译、备份原文、写回 zh/
 5. **build_chinese_pdf** — `latexmk -xelatex`，失败时按已知错误模式自动 fallback 重试
-6. **collect_output** — 复制中文 PDF 到 `output/<id>_zh.pdf` 与 `tmp/outbox/`
+6. **collect_output** — 复制中文 PDF 到 `output/<id>_<title_slug>_zh.pdf` 与 `tmp/outbox/`
 
 只有第 4 步需要大模型。其他步骤是 LaTeX 工具链 + 规则代码。
 

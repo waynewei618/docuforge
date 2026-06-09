@@ -348,6 +348,8 @@ def _translate_file(
         print(f"[skip] {_rel(path, project_root)}: no English chunks", flush=True)
         return
 
+    _backup_file(path, work / "zh", work / "api_backups" / opts.backup_stamp)
+
     translated_parts: list[str] = []
     cursor = 0
     changed = False
@@ -378,6 +380,12 @@ def _translate_file(
         changed = changed or output != chunk.text
         processed += 1
         stats.translated += 1
+
+        if changed:
+            temp_path = path.with_name(path.name + ".tmp")
+            temp_path.write_text("".join(translated_parts) + original[cursor:], encoding="utf-8")
+            temp_path.replace(path)
+
         _append_log(
             work,
             {
@@ -397,8 +405,9 @@ def _translate_file(
 
     translated_parts.append(original[cursor:])
     if changed:
-        _backup_file(path, work / "zh", work / "api_backups" / opts.backup_stamp)
-        path.write_text("".join(translated_parts), encoding="utf-8")
+        temp_path = path.with_name(path.name + ".tmp")
+        temp_path.write_text("".join(translated_parts), encoding="utf-8")
+        temp_path.replace(path)
         print(f"[write] {_rel(path, project_root)}", flush=True)
 
 

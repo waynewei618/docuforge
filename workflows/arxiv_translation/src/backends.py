@@ -11,6 +11,7 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+import http.client
 from typing import Protocol
 
 
@@ -86,7 +87,7 @@ class DeepSeekBackend:
                     body = response.read().decode("utf-8")
                 parsed = json.loads(body)
                 return _strip_code_fence(parsed["choices"][0]["message"]["content"])
-            except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, KeyError, json.JSONDecodeError) as exc:
+            except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, KeyError, json.JSONDecodeError, ConnectionError, http.client.HTTPException) as exc:
                 last_error = exc
                 if attempt >= self.retries:
                     break
