@@ -72,7 +72,7 @@ LaTeX 源码 .tex
 
 | 组件 | 作用 | 在本项目中由谁提供 |
 |---|---|---|
-| TeX Live | LaTeX 发行版，包含编译器、宏包、字体配置和辅助工具 | `/data/texlive/2026`（官方 installer，scheme-full） |
+| TeX Live | LaTeX 发行版，包含编译器、宏包、字体配置和辅助工具 | `$HOME/texlive/2026`（官方 installer，scheme-full） |
 | XeLaTeX | 支持 Unicode 和系统字体的 LaTeX 引擎，适合中文 PDF | 同上 |
 | latexmk | 自动多轮编译，处理引用、目录、BibTeX 等依赖 | 同上 |
 | ctex / xeCJK | 中文排版宏包 | 同上（scheme-full 自带） |
@@ -514,7 +514,7 @@ workflows/arxiv_translation/tmp/work/<arxiv_id>/notes/translation_rules.md
 
 ```text
 LaTeX 工具链（一份，全局共享）
-  └─ /data/texlive/2026          ← 官方 install-tl 装的 TeX Live 2026 scheme-full
+  └─ $HOME/texlive/2026          ← 官方 install-tl 装的 TeX Live 2026 scheme-full
   └─ 通过 PATH 暴露给所有 shell 和 conda 环境
 
 Python 能力环境（每能力一个 conda env）
@@ -535,7 +535,7 @@ LaTeX 工具链至少有三种装法，各有优缺点：
 | 宏包完整性 | `texlive-full` 较全；按子包装常缺细分宏包 | **明显不全**，arXiv 论文常报缺包 | scheme-full **覆盖 CTAN 全部宏包** |
 | 单包补装 | apt 粒度粗，小宏包常无独立包 | conda-forge 上很多宏包根本没打包 | `tlmgr install <pkg>`，CTAN 任意单包 |
 | 权限 | 需要 `sudo` | 用户态 | **用户态**，不动系统 |
-| 多版本共存 | 不行 | 不行 | 可（`/data/texlive/2024`、`/data/texlive/2026` 并存） |
+| 多版本共存 | 不行 | 不行 | 可（`$HOME/texlive/2024`、`$HOME/texlive/2026` 并存） |
 | 跟其他系统包耦合 | 升级时偶尔被联动卸载/降级 | 不耦合系统 | **完全独立**，系统升级不动它 |
 | 首装时间 | 几分钟（apt 缓存） | 几分钟 | 30–120 分钟（要下 4000+ 宏包） |
 | 卸载干净 | `apt purge` | `conda remove` | `rm -rf` 安装目录 |
@@ -558,26 +558,27 @@ sudo rm -rf /var/lib/texmf /etc/texmf
 hash -r
 ```
 
-#### 2. 用官方 installer 装 scheme-full 到 `/data/texlive/2026`
+#### 2. 用官方 installer 装 scheme-full 到 `$HOME/texlive/2026`
 
-> **选 `/data` 而不是 `~/`**：scheme-full 约 10G，家目录所在分区如果紧张就装到大盘。本项目 `/data` 是 1.8T 盘，剩余 1.3T，余量充足。
+> 本机安装在 `~` 下，可直接照做。若后续换到其他盘，只需把以下命令里的 `TEXLIVE_ROOT` 改为目标路径。
 
 ```bash
 # 取消代理，走清华源下 installer
+export TEXLIVE_ROOT="$HOME/texlive/2026"
 cd /tmp
 env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
   wget https://mirrors.tuna.tsinghua.edu.cn/CTAN/systems/texlive/tlnet/install-tl-unx.tar.gz
 tar -xzf install-tl-unx.tar.gz
 cd install-tl-2*/
 
-# 非交互安装 scheme-full 到 /data/texlive/2026
+# 非交互安装 scheme-full 到 $HOME/texlive/2026
 env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
   ./install-tl \
   -repository https://mirrors.tuna.tsinghua.edu.cn/CTAN/systems/texlive/tlnet/ \
   -scheme scheme-full \
   -no-interaction \
-  -texdir /data/texlive/2026 \
-  -texuserdir /data/texlive/.texlive2026
+  -texdir "$TEXLIVE_ROOT" \
+  -texuserdir "$HOME/.texlive2026"
 ```
 
 清华源走得满的话 1.5–2 小时完成（5000+ 宏包，约 10G）。中途断网可以重跑同一条命令，installer 支持续装。
@@ -587,10 +588,10 @@ env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
 ```bash
 cat >> ~/.bashrc <<'EOF'
 
-# TeX Live 2026 (官方 installer 装于 /data)
-export PATH="/data/texlive/2026/bin/x86_64-linux:$PATH"
-export MANPATH="/data/texlive/2026/texmf-dist/doc/man:$MANPATH"
-export INFOPATH="/data/texlive/2026/texmf-dist/doc/info:$INFOPATH"
+# TeX Live 2026 (官方 installer 装于 $TEXLIVE_ROOT)
+export PATH="$TEXLIVE_ROOT/bin/x86_64-linux:$PATH"
+export MANPATH="$TEXLIVE_ROOT/texmf-dist/doc/man:$MANPATH"
+export INFOPATH="$TEXLIVE_ROOT/texmf-dist/doc/info:$INFOPATH"
 EOF
 
 source ~/.bashrc
@@ -615,9 +616,9 @@ tlmgr --version | head -3
 应该看到：
 
 ```text
-/data/texlive/2026/bin/x86_64-linux/xelatex
-/data/texlive/2026/bin/x86_64-linux/latexmk
-/data/texlive/2026/bin/x86_64-linux/tlmgr
+$HOME/texlive/2026/bin/x86_64-linux/xelatex
+$HOME/texlive/2026/bin/x86_64-linux/latexmk
+$HOME/texlive/2026/bin/x86_64-linux/tlmgr
 XeTeX 3.141592653-2.6-0.999998 (TeX Live 2026)
 tlmgr revision ...
 TeX Live ... version 2026
@@ -638,7 +639,7 @@ env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
   pymupdf pypdf rich pydantic jinja2
 ```
 
-**禁止**在 `arxiv_translate`（或任何能力环境）里装 `tectonic` / `texlive-core` 等 LaTeX 包——LaTeX 只走 `/data/texlive/2026` 这一份。
+**禁止**在 `arxiv_translate`（或任何能力环境）里装 `tectonic` / `texlive-core` 等 LaTeX 包——LaTeX 只走 `$HOME/texlive/2026` 这一份。
 
 ### 验证完整链路
 
@@ -651,14 +652,14 @@ conda run -n arxiv_translate python -m src.translate  # 注：cd workflows/arxiv
 ```text
 conda:    /home/.../miniconda3/bin/conda
 python:   /home/.../miniconda3/envs/arxiv_translate/bin/python
-xelatex:  /data/texlive/2026/bin/x86_64-linux/xelatex
-latexmk:  /data/texlive/2026/bin/x86_64-linux/latexmk
+xelatex:  $HOME/texlive/2026/bin/x86_64-linux/xelatex
+latexmk:  $HOME/texlive/2026/bin/x86_64-linux/latexmk
 pdftotext: /usr/bin/pdftotext
-ctex.sty: /data/texlive/2026/texmf-dist/tex/latex/ctex/ctex.sty
-xeCJK.sty: /data/texlive/2026/texmf-dist/tex/xelatex/xecjk/xeCJK.sty
+ctex.sty: $HOME/texlive/2026/texmf-dist/tex/latex/ctex/ctex.sty
+xeCJK.sty: $HOME/texlive/2026/texmf-dist/tex/xelatex/xecjk/xeCJK.sty
 ```
 
-关键点：`python` 来自 conda 能力环境，`xelatex` / `latexmk` / `*.sty` 全部来自 `/data/texlive/2026`，**两层职责分清**。
+关键点：`python` 来自 conda 能力环境，`xelatex` / `latexmk` / `*.sty` 全部来自 `$HOME/texlive/2026`，**两层职责分清**。
 
 ### 日常维护
 
@@ -666,7 +667,7 @@ xeCJK.sty: /data/texlive/2026/texmf-dist/tex/xelatex/xecjk/xeCJK.sty
 - **更新宏包**（拿最新版本）：`tlmgr update --self --all`
 - **查宏包在哪**：`kpsewhich <pkg>.sty`
 - **看已装哪些宏包**：`tlmgr list --only-installed`
-- **完全卸载 TeX Live**：`rm -rf /data/texlive/2026 /data/texlive/.texlive2026`，然后从 `~/.bashrc` 删掉 PATH 三行
+- **完全卸载 TeX Live**：`rm -rf $HOME/texlive/2026 $HOME/.texlive2026`，然后从 `~/.bashrc` 删掉 PATH 三行
 
 `tlmgr` 完全用户态，不需要 sudo。
 
