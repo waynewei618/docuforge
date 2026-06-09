@@ -46,10 +46,6 @@ conda run -n docuforge python -m src.translate <arxiv_id> [选项]
 | `--output-dir <dir>` | 产物目录，默认 `./output/`（即 `workflows/arxiv_translation/output/`） |
 | `--backend {deepseek,claude,agy}` | 翻译后端，默认 `agy`（在 Antigravity 内走 `agy -p`）；在离线终端显式 `--backend deepseek` 走 DeepSeek API；在 Claude Code 内显式 `--backend claude` 走 `claude -p` |
 | `--force` | 即使 `output/<id>_zh.pdf` 已存在也强制重做 |
-| `--limit-chunks <N>` | 每文件至多翻译 N 个 chunk（调试用） |
-| `--main-only` | 只翻译 `--main`（默认 `main_zh.tex`）一个文件 |
-| `--no-source` | 不下载 arXiv e-print 源码（仅 PDF 抽取降级） |
-| `--json` | 机器可读输出 |
 
 
 ### 示例

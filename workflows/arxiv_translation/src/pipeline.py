@@ -46,11 +46,7 @@ TEMPLATES      = WORKFLOW_ROOT / "templates"
 class PipelineOptions:
     backend: str = "agy"
     output_dir: Path = OUTPUT_DEFAULT
-    main: str = "main_zh.tex"
     force: bool = False
-    limit_chunks: int | None = None
-    main_only: bool = False
-    no_source: bool = False  # 不下载 arXiv e-print
 
 
 @dataclass
@@ -285,7 +281,7 @@ def prepare_work(arxiv_id: str, source_pdf: Path, work: Path, opts: PipelineOpti
     source_status = "not_requested"
     main_tex: Path | None = None
     archive = work / "e-print.tar.gz"
-    if fresh and not opts.no_source and re.fullmatch(r"\d{4}\.\d{4,5}", arxiv_id):
+    if fresh and re.fullmatch(r"\d{4}\.\d{4,5}", arxiv_id):
         print(f"[prepare] 下载 arXiv 源码: {arxiv_id}", flush=True)
         if download_arxiv_source(arxiv_id, archive):
             _extract_source_archive(archive, source)
@@ -304,7 +300,7 @@ def prepare_work(arxiv_id: str, source_pdf: Path, work: Path, opts: PipelineOpti
         if _extract_pdf_text(work_pdf, extracted_txt):
             print(f"[prepare] 已提取 PDF 文本: {_rel(extracted_txt)}", flush=True)
 
-    zh_main = zh / opts.main
+    zh_main = zh / "main_zh.tex"
     if fresh:
         if main_tex is not None:
             print(f"[prepare] 检测到主 TeX: {_rel(main_tex)}", flush=True)
@@ -485,9 +481,9 @@ def run_pipeline(input_value: str, opts: PipelineOptions) -> PipelineResult:
     # 3. 翻译
     backend, backend_model = _build_backend_from_opts(opts)
     translate_opts = TranslateOptions(
-        main=opts.main,
-        main_only=opts.main_only,
-        limit_chunks=opts.limit_chunks,
+        main="main_zh.tex",
+        main_only=False,
+        limit_chunks=None,
         force=False,
         sleep=0.0,
     )
@@ -501,7 +497,7 @@ def run_pipeline(input_value: str, opts: PipelineOptions) -> PipelineResult:
     )
 
     # 4. 编译
-    built_pdf = build_chinese_pdf(work, opts.main)
+    built_pdf = build_chinese_pdf(work, "main_zh.tex")
 
     # 5. 落产物
     chinese_out = collect_output(built_pdf, zh_main, arxiv_id, output_dir)

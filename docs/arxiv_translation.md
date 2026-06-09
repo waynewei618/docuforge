@@ -67,12 +67,7 @@ conda run -n docuforge python -m src.translate <input> [选项]
 |---|---|---|
 | `--output-dir <dir>` | `./output/` | 产物目录 |
 | `--backend {deepseek,claude,agy}` | `agy` | 翻译后端 |
-| `--main <name>` | `main_zh.tex` | 中文主 TeX 文件名 |
 | `--force` | — | 即使 `output/<id>_zh.pdf` 存在也强制重做 |
-| `--limit-chunks <N>` | — | 每文件至多翻译 N 个 chunk（调试用） |
-| `--main-only` | — | 只翻译 `--main` 一个文件 |
-| `--no-source` | — | 不下载 arXiv e-print 源码（仅 PDF 抽取降级） |
-| `--json` | — | 机器可读输出 |
 
 
 ## 翻译后端
@@ -141,9 +136,6 @@ conda run -n docuforge python -m src.translate 2405.17705 --backend claude
 
 # 5. 强制重做
 conda run -n docuforge python -m src.translate 2405.17705 --force
-
-# 6. 仅翻译主 TeX 的前 5 个 chunk（调试用）
-conda run -n docuforge python -m src.translate 2405.17705 --main-only --limit-chunks 5
 ```
 
 ## 幂等与缓存
