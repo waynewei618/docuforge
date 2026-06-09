@@ -155,6 +155,56 @@ class ClaudeCodeBackend:
         raise RuntimeError(f"claude -p 请求失败：{last_error}")
 
 
+class AgyBackend:
+    """通过 `agy -p` headless 模式调用 Antigravity 做翻译。
+
+    模型解析优先级：参数 model > 环境变量 AGY_SUBAGENT_MODEL > 不传 --model。
+    """
+
+    def __init__(
+        self,
+        model: str | None = None,
+        timeout: int = 300,
+        retries: int = 2,
+    ) -> None:
+        self.model = model or os.environ.get("AGY_SUBAGENT_MODEL") or None
+        self.timeout = timeout
+        self.retries = retries
+
+    def translate(self, system_prompt: str, text: str) -> str:
+        prompt = f"{system_prompt}\n\n---\n\n{text}"
+        cmd = [
+            "agy", "-p", prompt,
+        ]
+        if self.model:
+            cmd += ["--model", self.model]
+
+        last_error: Exception | None = None
+        for attempt in range(self.retries + 1):
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=self.timeout,
+                    check=False,
+                )
+                if result.returncode != 0:
+                    raise RuntimeError(
+                        f"agy -p 返回非零退出码 {result.returncode}: {result.stderr.strip()[:500]}"
+                    )
+                return _strip_code_fence(result.stdout)
+            except (subprocess.TimeoutExpired, RuntimeError) as exc:
+                last_error = exc
+                if attempt >= self.retries:
+                    break
+                wait = min(30, 2 ** attempt)
+                print(f"[warn] agy -p 请求失败，{wait}s 后重试：{exc}", flush=True)
+                time.sleep(wait)
+
+        raise RuntimeError(f"agy -p 请求失败：{last_error}")
+
+
 def build_backend(name: str, **kwargs: object) -> TranslationBackend:
     """工厂：按名字实例化后端，自动过滤无关 kwargs。"""
     if name == "deepseek":
@@ -163,4 +213,7 @@ def build_backend(name: str, **kwargs: object) -> TranslationBackend:
     if name == "claude":
         accepted = {"model", "timeout", "retries"}
         return ClaudeCodeBackend(**{k: v for k, v in kwargs.items() if k in accepted})  # type: ignore[arg-type]
-    raise SystemExit(f"未知 backend: {name}（可选: deepseek / claude）")
+    if name == "agy":
+        accepted = {"model", "timeout", "retries"}
+        return AgyBackend(**{k: v for k, v in kwargs.items() if k in accepted})  # type: ignore[arg-type]
+    raise SystemExit(f"未知 backend: {name}（可选: deepseek / claude / agy）")

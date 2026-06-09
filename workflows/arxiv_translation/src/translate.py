@@ -25,8 +25,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help=f"产物目录，默认 {OUTPUT_DEFAULT}",
     )
     p.add_argument(
-        "--backend", choices=["deepseek", "claude"], default="deepseek",
-        help="翻译后端：deepseek（默认；离线终端走 DeepSeek API）/ claude（在 Claude Code 内调 claude -p）",
+        "--backend", choices=["deepseek", "claude", "agy"], default="deepseek",
+        help="翻译后端：deepseek（默认；离线终端走 DeepSeek API）/ claude（在 Claude Code 内调 claude -p） / agy（在 Antigravity 内调 agy -p）",
     )
     p.add_argument("--main", default="main_zh.tex", help="中文主 TeX 文件名")
     p.add_argument("--force", action="store_true", help="即使产物已存在也强制重做")
@@ -49,6 +49,11 @@ def _build_parser() -> argparse.ArgumentParser:
     g_cl.add_argument("--claude-model", help="默认读 CLAUDE_CODE_SUBAGENT_MODEL 环境变量")
     g_cl.add_argument("--claude-timeout", type=int, default=300)
     g_cl.add_argument("--claude-retries", type=int, default=2)
+
+    g_ag = p.add_argument_group("Agy 专属")
+    g_ag.add_argument("--agy-model", help="默认读 AGY_SUBAGENT_MODEL 环境变量")
+    g_ag.add_argument("--agy-timeout", type=int, default=300)
+    g_ag.add_argument("--agy-retries", type=int, default=2)
 
     return p
 
@@ -75,6 +80,9 @@ def main(argv: list[str] | None = None) -> int:
         claude_model=args.claude_model,
         claude_timeout=args.claude_timeout,
         claude_retries=args.claude_retries,
+        agy_model=args.agy_model,
+        agy_timeout=args.agy_timeout,
+        agy_retries=args.agy_retries,
     )
 
     result = run_pipeline(args.input, opts)

@@ -67,6 +67,11 @@ class PipelineOptions:
     claude_timeout: int = 300
     claude_retries: int = 2
 
+    # Agy 专属
+    agy_model: str | None = None
+    agy_timeout: int = 300
+    agy_retries: int = 2
+
 
 @dataclass
 class PipelineResult:
@@ -447,7 +452,16 @@ def _build_backend_from_opts(opts: PipelineOptions):
         )
         model_label = opts.claude_model or os.environ.get("CLAUDE_CODE_SUBAGENT_MODEL") or "claude-default"
         return backend, model_label
-    raise SystemExit(f"未知 backend: {opts.backend}（可选: deepseek / claude）")
+    if opts.backend == "agy":
+        backend = build_backend(
+            "agy",
+            model=opts.agy_model,
+            timeout=opts.agy_timeout,
+            retries=opts.agy_retries,
+        )
+        model_label = opts.agy_model or os.environ.get("AGY_SUBAGENT_MODEL") or "agy-default"
+        return backend, model_label
+    raise SystemExit(f"未知 backend: {opts.backend}（可选: deepseek / claude / agy）")
 
 
 # ---------- 主入口 ----------
