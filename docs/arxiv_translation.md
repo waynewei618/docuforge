@@ -73,35 +73,23 @@ conda run -n docuforge python -m src.translate <input> [选项]
 | `--main-only` | — | 只翻译 `--main` 一个文件 |
 | `--no-source` | — | 不下载 arXiv e-print 源码（仅 PDF 抽取降级） |
 | `--json` | — | 机器可读输出 |
+大模型与翻译控制（通用选项）：
 
-DeepSeek 专属（仅 `--backend deepseek` 时生效）：
-
-| 选项 | 默认 |
+| 选项 | 默认 / 说明 |
 |---|---|
-| `--deepseek-api-key` | `$DEEPSEEK_API_KEY` |
-| `--deepseek-base-url` | `https://api.deepseek.com` |
-| `--deepseek-model` | `deepseek-v4-flash` |
-| `--deepseek-temperature` | `0.2` |
-| `--deepseek-max-tokens` | （不设） |
-| `--deepseek-timeout` | `120` |
-| `--deepseek-retries` | `3` |
-| `--deepseek-sleep` | `0.0` |
+| `--model` | 大模型名称（若不设，agy/claude 路由至默认环境变量，deepseek 默认为 `deepseek-v4-flash`） |
+| `--timeout` | 请求超时秒数（未指定时，deepseek 默认为 120，claude/agy 默认为 300） |
+| `--retries` | 失败重试次数（未指定时，deepseek 默认为 3，claude/agy 默认为 2） |
 
-Claude 专属（仅 `--backend claude` 时生效）：
+API 专属选项（一般仅在 API 类后端生效）：
 
-| 选项 | 默认 |
+| 选项 | 默认 / 说明 |
 |---|---|
-| `--claude-model` | `$CLAUDE_CODE_SUBAGENT_MODEL`（未设则 `claude` 默认） |
-| `--claude-timeout` | `300` |
-| `--claude-retries` | `2` |
-
-Agy 专属（仅 `--backend agy` 时生效）：
-
-| 选项 | 默认 |
-|---|---|
-| `--agy-model` | `$AGY_SUBAGENT_MODEL`（未设则默认） |
-| `--agy-timeout` | `300` |
-| `--agy-retries` | `2` |
+| `--api-key` | API 秘钥（优先读取 `DEEPSEEK_API_KEY` 环境变量） |
+| `--base-url` | API base URL（deepseek 默认为 `https://api.deepseek.com`） |
+| `--temperature` | 采样温度，默认 `0.2` |
+| `--max-tokens` | 限制响应的最大 token 数 |
+| `--sleep` | 延迟休眠时间（秒），默认 `0.0` |
 
 ## 翻译后端
 
@@ -120,7 +108,7 @@ conda run -n docuforge python -m src.translate 2405.17705
 conda run -n docuforge python -m src.translate 2405.17705 --backend agy
 ```
 
-模型解析优先级：`--agy-model` > `AGY_SUBAGENT_MODEL` 环境变量 > `agy` 默认。不需要单独配 API key，认证自动继承 Antigravity 的 session。
+模型解析优先级：`--model` > `AGY_SUBAGENT_MODEL` 环境变量 > `agy` 默认。不需要单独配 API key，认证自动继承 Antigravity 的 session。
 
 ### DeepSeek
 
@@ -143,7 +131,7 @@ cd workflows/arxiv_translation
 conda run -n docuforge python -m src.translate 2405.17705 --backend claude
 ```
 
-模型解析优先级：`--claude-model` > `CLAUDE_CODE_SUBAGENT_MODEL` 环境变量 > `claude` 默认。不需要单独配 API key，认证自动继承 Claude Code 的 session。
+模型解析优先级：`--model` > `CLAUDE_CODE_SUBAGENT_MODEL` 环境变量 > `claude` 默认。不需要单独配 API key，认证自动继承 Claude Code 的 session。
 
 > **何时选哪个**：在 Antigravity 内运行希望走其 subagent 链 → 默认 `agy` 即可；离线终端、批量、不需要复用对话上下文 → `deepseek`；在 Claude Code 内希望走其 subagent 链 → `claude`。三个后端共享同一份 chunk 切分与 `system_prompt`，翻译质量主要取决于模型本身。
 

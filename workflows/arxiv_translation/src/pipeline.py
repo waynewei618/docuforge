@@ -52,25 +52,17 @@ class PipelineOptions:
     main_only: bool = False
     no_source: bool = False  # 不下载 arXiv e-print
 
-    # DeepSeek 专属
-    deepseek_api_key: str | None = None
-    deepseek_base_url: str = DEFAULT_DEEPSEEK_BASE_URL
-    deepseek_model: str = DEFAULT_DEEPSEEK_MODEL
-    deepseek_temperature: float = 0.2
-    deepseek_max_tokens: int | None = None
-    deepseek_timeout: int = 120
-    deepseek_retries: int = 3
-    deepseek_sleep: float = 0.0
+    # 通用翻译控制
+    model: str | None = None
+    timeout: int | None = None
+    retries: int | None = None
 
-    # Claude 专属
-    claude_model: str | None = None
-    claude_timeout: int = 300
-    claude_retries: int = 2
-
-    # Agy 专属
-    agy_model: str | None = None
-    agy_timeout: int = 300
-    agy_retries: int = 2
+    # API 专属参数
+    api_key: str | None = None
+    base_url: str | None = None
+    temperature: float = 0.2
+    max_tokens: int | None = None
+    sleep: float = 0.0
 
 
 @dataclass
@@ -429,38 +421,51 @@ def collect_output(built_pdf: Path, zh_tex: Path, arxiv_id: str, output_dir: Pat
 
 def _build_backend_from_opts(opts: PipelineOptions):
     if opts.backend == "deepseek":
-        api_key = opts.deepseek_api_key or os.environ.get("DEEPSEEK_API_KEY")
+        api_key = opts.api_key or os.environ.get("DEEPSEEK_API_KEY")
         if not api_key:
-            raise SystemExit("缺少 DEEPSEEK_API_KEY。请先 export DEEPSEEK_API_KEY='sk-...'。")
+            raise SystemExit("缺少 DEEPSEEK_API_KEY。请先配置 --api-key 或 export DEEPSEEK_API_KEY='sk-...'。")
+        
+        model = opts.model or DEFAULT_DEEPSEEK_MODEL
+        timeout = opts.timeout if opts.timeout is not None else 120
+        retries = opts.retries if opts.retries is not None else 3
+        base_url = opts.base_url or DEFAULT_DEEPSEEK_BASE_URL
+
         backend = build_backend(
             "deepseek",
             api_key=api_key,
-            base_url=opts.deepseek_base_url,
-            model=opts.deepseek_model,
-            temperature=opts.deepseek_temperature,
-            max_tokens=opts.deepseek_max_tokens,
-            timeout=opts.deepseek_timeout,
-            retries=opts.deepseek_retries,
+            base_url=base_url,
+            model=model,
+            temperature=opts.temperature,
+            max_tokens=opts.max_tokens,
+            timeout=timeout,
+            retries=retries,
         )
-        return backend, opts.deepseek_model
+        return backend, model
+
     if opts.backend == "claude":
+        timeout = opts.timeout if opts.timeout is not None else 300
+        retries = opts.retries if opts.retries is not None else 2
         backend = build_backend(
             "claude",
-            model=opts.claude_model,
-            timeout=opts.claude_timeout,
-            retries=opts.claude_retries,
+            model=opts.model,
+            timeout=timeout,
+            retries=retries,
         )
-        model_label = opts.claude_model or os.environ.get("CLAUDE_CODE_SUBAGENT_MODEL") or "claude-default"
+        model_label = opts.model or os.environ.get("CLAUDE_CODE_SUBAGENT_MODEL") or "claude-default"
         return backend, model_label
+
     if opts.backend == "agy":
+        timeout = opts.timeout if opts.timeout is not None else 300
+        retries = opts.retries if opts.retries is not None else 2
         backend = build_backend(
             "agy",
-            model=opts.agy_model,
-            timeout=opts.agy_timeout,
-            retries=opts.agy_retries,
+            model=opts.model,
+            timeout=timeout,
+            retries=retries,
         )
-        model_label = opts.agy_model or os.environ.get("AGY_SUBAGENT_MODEL") or "agy-default"
+        model_label = opts.model or os.environ.get("AGY_SUBAGENT_MODEL") or "agy-default"
         return backend, model_label
+
     raise SystemExit(f"未知 backend: {opts.backend}（可选: deepseek / claude / agy）")
 
 
@@ -498,7 +503,7 @@ def run_pipeline(input_value: str, opts: PipelineOptions) -> PipelineResult:
         main_only=opts.main_only,
         limit_chunks=opts.limit_chunks,
         force=False,
-        sleep=opts.deepseek_sleep if opts.backend == "deepseek" else 0.0,
+        sleep=opts.sleep if opts.backend == "deepseek" else 0.0,
     )
     translate_work(
         work=work,

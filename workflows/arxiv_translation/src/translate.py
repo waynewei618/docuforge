@@ -35,25 +35,17 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-source", action="store_true", help="不下载 arXiv e-print 源码")
     p.add_argument("--json", action="store_true", dest="json_out", help="机器可读输出")
 
-    g_ds = p.add_argument_group("DeepSeek 专属")
-    g_ds.add_argument("--deepseek-api-key", help="DeepSeek API key；优先用 DEEPSEEK_API_KEY 环境变量")
-    g_ds.add_argument("--deepseek-base-url", default=DEFAULT_DEEPSEEK_BASE_URL)
-    g_ds.add_argument("--deepseek-model", default=DEFAULT_DEEPSEEK_MODEL)
-    g_ds.add_argument("--deepseek-temperature", type=float, default=0.2)
-    g_ds.add_argument("--deepseek-max-tokens", type=int)
-    g_ds.add_argument("--deepseek-timeout", type=int, default=120)
-    g_ds.add_argument("--deepseek-retries", type=int, default=3)
-    g_ds.add_argument("--deepseek-sleep", type=float, default=0.0)
+    g_llm = p.add_argument_group("大模型与翻译控制（通用）")
+    g_llm.add_argument("--model", help="大模型名称。如不指定，agy/claude 路由至默认环境变量，deepseek 默认为 deepseek-v4-flash")
+    g_llm.add_argument("--timeout", type=int, help="单次请求超时时间（秒）。默认：deepseek 120, claude/agy 300")
+    g_llm.add_argument("--retries", type=int, help="失败重试次数。默认：deepseek 3, claude/agy 2")
 
-    g_cl = p.add_argument_group("Claude Code 专属")
-    g_cl.add_argument("--claude-model", help="默认读 CLAUDE_CODE_SUBAGENT_MODEL 环境变量")
-    g_cl.add_argument("--claude-timeout", type=int, default=300)
-    g_cl.add_argument("--claude-retries", type=int, default=2)
-
-    g_ag = p.add_argument_group("Agy 专属")
-    g_ag.add_argument("--agy-model", help="默认读 AGY_SUBAGENT_MODEL 环境变量")
-    g_ag.add_argument("--agy-timeout", type=int, default=300)
-    g_ag.add_argument("--agy-retries", type=int, default=2)
+    g_api = p.add_argument_group("API 专属选项（一般仅在 API 类后端生效）")
+    g_api.add_argument("--api-key", help="API 秘钥。对 deepseek 优先读取 DEEPSEEK_API_KEY 环境变量")
+    g_api.add_argument("--base-url", help="API base URL。对 deepseek 默认为 https://api.deepseek.com")
+    g_api.add_argument("--temperature", type=float, default=0.2, help="大模型采样温度，默认 0.2")
+    g_api.add_argument("--max-tokens", type=int, help="限制单次响应的最大 token 数")
+    g_api.add_argument("--sleep", type=float, default=0.0, help="单次翻译请求后的延迟休眠时间（秒），默认 0.0")
 
     return p
 
@@ -69,20 +61,14 @@ def main(argv: list[str] | None = None) -> int:
         limit_chunks=args.limit_chunks,
         main_only=args.main_only,
         no_source=args.no_source,
-        deepseek_api_key=args.deepseek_api_key,
-        deepseek_base_url=args.deepseek_base_url,
-        deepseek_model=args.deepseek_model,
-        deepseek_temperature=args.deepseek_temperature,
-        deepseek_max_tokens=args.deepseek_max_tokens,
-        deepseek_timeout=args.deepseek_timeout,
-        deepseek_retries=args.deepseek_retries,
-        deepseek_sleep=args.deepseek_sleep,
-        claude_model=args.claude_model,
-        claude_timeout=args.claude_timeout,
-        claude_retries=args.claude_retries,
-        agy_model=args.agy_model,
-        agy_timeout=args.agy_timeout,
-        agy_retries=args.agy_retries,
+        model=args.model,
+        timeout=args.timeout,
+        retries=args.retries,
+        api_key=args.api_key,
+        base_url=args.base_url,
+        temperature=args.temperature,
+        max_tokens=args.max_tokens,
+        sleep=args.sleep,
     )
 
     result = run_pipeline(args.input, opts)
