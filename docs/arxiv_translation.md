@@ -65,8 +65,8 @@ conda run -n docuforge python -m src.translate <input> [选项]
 
 | 选项 | 默认 | 说明 |
 |---|---|---|
-| `--output-dir <dir>` | `./output/` | 产物目录 |
-| `--force` | — | 即使 `output/<id>_zh.pdf` 存在也强制重做 |
+| `--output-dir <dir>` | 项目根目录下的 `outputs/arxiv_translation/` | 产物目录 |
+| `--force` | — | 即使 `outputs/arxiv_translation/<id>_zh.pdf` 存在也强制重做 |
 | `--prepare` | — | 【Agent 异步协作模式】仅解包并导出待翻译的 JSON 文本 |
 | `--compile` | — | 【Agent 异步协作模式】仅读取翻译好的 JSON 并编译为 PDF |
 

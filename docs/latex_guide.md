@@ -336,7 +336,7 @@ assets/overview.jpg
    - `python -m src.translate <arxiv_id>` 跑完整条流水线（包含初始化）；
    - 修改 `workflows/arxiv_translation/tmp/work/<arxiv_id>/zh/` 下的 LaTeX；
    - 主流水线自动调 latexmk 编译，缓存留在 `tmp/work/<arxiv_id>/build_zh/`；
-   - 输出中文 PDF 到 `workflows/arxiv_translation/output/` 和源 PDF 同目录。
+   - 输出中文 PDF 到 `outputs/arxiv_translation/` 和源 PDF 同目录。
 
 还有一层目录组织：
 
@@ -355,7 +355,7 @@ workflows/arxiv_translation/tmp/work/<arxiv_id>/
 - `source/`：原始英文源码，尽量不要改；
 - `zh/`：中文翻译工程，翻译和修复都在这里做；
 - `build_zh/`：编译产生的中间文件，不作为主要编辑对象；
-- `output/`（位于 `workflows/arxiv_translation/output/`）：用户感知的最终产物，每篇出 `<id>_en.pdf` 和 `<id>_zh.pdf`。
+- `outputs/`（位于项目目录下的 `outputs/arxiv_translation/`）：用户感知的最终产物，每篇出 `<id>_en.pdf` 和 `<id>_zh.pdf`。
 
 简化流程：
 
@@ -380,7 +380,7 @@ workflows/arxiv_translation/tmp/work/<arxiv_id>/
   -> 保留公式、图片、引用、表格、模板、BibTeX key
   -> 用 XeLaTeX / latexmk 重新编译
   -> 生成中文 PDF
-  -> 复制到 workflows/arxiv_translation/output/ 和源 PDF 同目录
+  -> 复制到 outputs/arxiv_translation/ 和源 PDF 同目录
 ```
 
 这里的关键点是：本项目不是直接修改 PDF，而是尽量修改“生成 PDF 的源码”。arXiv 论文通常是作者用 LaTeX 写出来的源码工程，经过 LaTeX 编译器渲染后才成为 PDF。本项目把英文 LaTeX 工程复制为中文 LaTeX 工程，翻译其中的自然语言文本，再重新编译成中文 PDF。
@@ -695,7 +695,7 @@ cd workflows/arxiv_translation/tmp/work/<arxiv_id>/zh
 latexmk -C
 ```
 
-本项目推荐使用统一入口 `python -m src.translate <input>`，它会跑完整条流水线（下载/翻译/编译/落产物），把 PDF 复制到 `workflows/arxiv_translation/output/` 和源 PDF 同目录。手动 `latexmk` 仅用于调试。
+本项目推荐使用统一入口 `python -m src.translate <input>`，它会跑完整条流水线（下载/翻译/编译/落产物），把 PDF 复制到 `outputs/arxiv_translation/` 和源 PDF 同目录。手动 `latexmk` 仅用于调试。
 
 ## 什么时候需要安装 LaTeX
 

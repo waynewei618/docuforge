@@ -39,4 +39,4 @@
    conda run -n docuforge python -m src.translate <input> --compile
    ```
    *此步骤会自动将译文安全写回 TeX，并调用本地 LaTeX 工具链一键编译。*
-   - 编译完成后，将生成的 `output/<arxiv_id>_zh.pdf` 路径链接和编译结果直接呈献给用户即可。
+    - 编译完成后，将生成的 `outputs/arxiv_translation/<arxiv_id>_zh.pdf` 路径链接和编译结果直接呈献给用户即可。

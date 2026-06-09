@@ -7,7 +7,7 @@
 - 有发表信息论文优先级已完成；剩余任务全部来自 `未查到正式发表信息/`。
 - 每篇优先使用 arXiv LaTeX 源码，保留原图、公式、引用和表格结构。
 - 翻译后端默认使用 agy（在 Antigravity 内无需指定）；离线终端显式走 `--backend deepseek` 调 DeepSeek API；Claude Code 内显式走 `--backend claude` 调 `claude -p`。
-- 中文 PDF 同时落在 `workflows/arxiv_translation/output/<id>_zh.pdf` 与源英文 PDF 同目录。
+- 中文 PDF 同时落在 `outputs/arxiv_translation/<id>_zh.pdf` 与源英文 PDF 同目录。
 
 ## 当前状态
 
@@ -26,7 +26,7 @@
 
 产物检查：
 
-- `workflows/arxiv_translation/output/` 中中文 PDF：98 份（注：本次重构后路径从原 `workspace/.../outbox/` 迁来）。
+- `outputs/arxiv_translation/` 中中文 PDF：98 份（注：本次重构后路径从原 `workspace/.../outbox/` 迁来）。
 - 源英文 PDF 同目录中文 PDF：98 份。
 
 ## 已完成 ID

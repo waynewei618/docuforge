@@ -1,7 +1,7 @@
 """CLI 入口：python -m src.translate <input> [选项]。
 
 <input>: arXiv ID（2405.17705 / 带版本 / URL）或本地 PDF 路径。
-默认产物落在 workflows/arxiv_translation/output/<id>_{en,zh}.pdf。
+默认产物落在 outputs/arxiv_translation/<id>_{en,zh}.pdf。
 """
 from __future__ import annotations
 

@@ -36,7 +36,7 @@ TMP_ROOT       = WORKFLOW_ROOT / "tmp"
 INBOX          = TMP_ROOT / "inbox"
 WORK_ROOT      = TMP_ROOT / "work"
 DEBUG_OUTBOX   = TMP_ROOT / "outbox"
-OUTPUT_DEFAULT = WORKFLOW_ROOT / "output"
+OUTPUT_DEFAULT = PROJECT_ROOT / "outputs" / "arxiv_translation"
 TEMPLATES      = WORKFLOW_ROOT / "templates"
 
 
