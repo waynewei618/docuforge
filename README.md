@@ -24,7 +24,7 @@ workflows/                              # 可复用工作流代码和模板
     src/                                # arXiv → 中文 PDF 流水线代码
     templates/                          # 翻译规则和模型提示词
     tmp/                                # 调试缓存：inbox/work/<id>/outbox 等
-  manuscript_to_ppt/                    # 根据手稿创建 PPT 的能力文件夹（待实现）
+  manuscript_to_ppt/                    # 根据手稿创建 PPT 的能力文件夹
 papers/                                 # 当前样例/研究资料库
   auto_drive_3dgs/                      # 自动驾驶 3DGS 论文集合
 ```
@@ -77,9 +77,27 @@ conda run -n docuforge python -m src.translate 2405.17705 --force
 
 幂等：再次跑同一个 ID 默认会跳过；用 `--force` 重做。中间产物保留在 `tmp/work/<id>/`，方便 debug。
 
+## 手稿生成 Beamer PPT (manuscript_to_ppt)
+
+唯一入口，从手稿图片到 `outputs/manuscript_to_ppt/<title_slug>.pdf` 编译生成 Beamer 演示文稿：
+
+```bash
+cd workflows/manuscript_to_ppt
+# 1. 准备阶段：创建工作目录，复制图片
+conda run -n docuforge python -m src.generate <image_path> --prepare
+
+# 2. Agent 内部静默生成：使用 Vision LLM 识别手稿并生成 beamer 代码写入 frames.tex (由 Agent 内部执行)
+
+# 3. 编译阶段：自动拼接并编译为 PDF，且生成每页 PNG 预览图供 Agent 视觉检查
+conda run -n docuforge python -m src.generate <image_path> --compile
+```
+
+生成的 PDF 与手稿图片副本将被自动重命名为包含手稿前 3 个 Frame 标题的内容相关文件名，保存在 `outputs/manuscript_to_ppt/` 下。
+
 ## 文档
 
 - [arXiv 翻译流程](docs/arxiv_translation.md)
+- [手稿生成 Beamer PPT 流程](docs/manuscript_to_ppt.md)
 - [项目目录结构](docs/project_structure.md)
 - [LaTeX 与本项目排版环境说明](docs/latex_guide.md)
 - [当前翻译进度](docs/translation_status.md)

@@ -1,0 +1,60 @@
+% ============================================================
+% DocuForge — Manuscript to PPT: Beamer Preamble
+% 此文件由流水线自动拼接在 LLM 生成的 frame 内容之前。
+% LLM 只需输出 \begin{frame} ... \end{frame} 和 \end{document}。
+% ============================================================
+
+\documentclass[10pt, aspectratio=169, t]{beamer}
+
+% ---------- 主题 ----------
+\usetheme[progressbar=frametitle, numbering=fraction, sectionpage=none]{metropolis}
+
+% 自定义配色 —— 深蓝+灰白色调，学术感
+\definecolor{PrimaryBlue}{HTML}{2C3E6B}
+\definecolor{AccentTeal}{HTML}{1A8A8A}
+\definecolor{LightBg}{HTML}{F5F5F5}
+\definecolor{DarkText}{HTML}{2D2D2D}
+\definecolor{MutedGray}{HTML}{6B7280}
+\definecolor{HighlightRed}{HTML}{C0392B}
+
+\setbeamercolor{palette primary}{bg=PrimaryBlue, fg=white}
+\setbeamercolor{frametitle}{bg=PrimaryBlue, fg=white}
+\setbeamercolor{progress bar}{fg=AccentTeal}
+\setbeamercolor{title separator}{fg=AccentTeal}
+\setbeamercolor{alerted text}{fg=HighlightRed}
+\setbeamercolor{block title}{bg=PrimaryBlue!15, fg=PrimaryBlue}
+\setbeamercolor{block body}{bg=LightBg}
+\setbeamercolor{normal text}{fg=DarkText}
+
+% ---------- 字体 ----------
+\usepackage{fontspec}
+\setsansfont{Noto Sans}
+\usepackage{xeCJK}
+\setCJKsansfont{Noto Sans CJK SC}
+\setCJKmainfont{Noto Sans CJK SC}
+
+% ---------- 数学 ----------
+\usepackage{amsmath, amssymb, mathtools, bm}
+
+% ---------- 绘图与代码 ----------
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc, shapes.geometric, decorations.pathreplacing}
+\usepackage{algorithm2e}
+\SetAlgorithmName{算法}{算法}{算法列表}
+
+% ---------- 其他 ----------
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+
+% 紧凑间距
+\setlength{\parskip}{0.3em}
+\setbeamertemplate{itemize items}[circle]
+\setbeamertemplate{enumerate items}[default]
+
+% 脚注样式
+\setbeamerfont{footnote}{size=\tiny}
+
+% ============================================================
+% ↓↓↓ 以下由 LLM 生成的内容会被拼接在此处 ↓↓↓
+% ============================================================

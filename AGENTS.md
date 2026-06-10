@@ -13,7 +13,7 @@
 
 **结构原则**：LaTeX 工具链全机一处共享，全项目共用一个以项目命名的 conda 环境。
 
-- **LaTeX 共享层** — 官方 installer scheme-full，装于 `$HOME/texlive/2026`，通过 `~/.bashrc` 加入 PATH。所有 shell 与 conda 环境直接调 `xelatex` / `latexmk` / `tlmgr`。宏包更新用 `tlmgr update --self --all`，缺包用 `tlmgr install <pkg>`。不用 apt、conda-forge、tectonic 等替代方式。
+- **LaTeX 共享层** — 官方 installer scheme-full，装于 `~/texlive/2026`，`~/.bashrc` 将 `~/texlive/2026/bin/x86_64-linux` 加入 PATH。所有 shell 与 conda 环境直接调 `xelatex` / `latexmk` / `tlmgr`。宏包更新用 `tlmgr update --self --all`，缺包用 `tlmgr install <pkg>`。不用 apt、conda-forge、tectonic 等替代方式。
 - **Python 环境** — 全项目共用一个名为 `docuforge` 的 conda 环境，装入所有能力的 Python 依赖。不使用 venv 或系统 pip。
 
 ## Agent 自动翻译运行指南（免授权三段式模式）
@@ -40,3 +40,35 @@
    ```
    *此步骤会自动将译文安全写回 TeX，并调用本地 LaTeX 工具链一键编译。*
     - 编译完成后，将生成的 `outputs/arxiv_translation/<arxiv_id>_zh.pdf` 路径链接和编译结果直接呈献给用户即可。
+
+## Agent 手稿生成 PPT 运行指南（免授权三段式模式）
+
+当用户发出类似"把这张手稿做成 PPT"或发送手稿图片等指令时，Agent 必须主动将任务拆解为以下三段式流程并在后台静默调度：
+
+1. **第一阶段：准备 (Prepare)**
+   进入 `workflows/manuscript_to_ppt` 目录，在命令行运行准备命令：
+   ```bash
+   conda run -n docuforge python -m src.generate <image_path> --prepare
+   ```
+   *此步骤创建工作目录 `tmp/work/<image_id>/`，复制图片并输出元数据。不调用大模型，无弹窗。*
+
+2. **第二阶段：Agent 内部静默生成 Beamer 代码 (Generate)**
+   - 读取工作目录中的手稿图片；
+   - 读取 `templates/prompt.md` 中的系统提示词规则；
+   - **直接在 Agent 内部**使用 Vision LLM 分析手稿，识别独立学术主题，按"一页一主题"原则生成 Beamer frame 代码；
+   - 将生成的 LaTeX 代码写入 `tmp/work/<image_id>/frames.tex`。
+
+3. **第三阶段：编译 (Compile)**
+   进入 `workflows/manuscript_to_ppt` 目录，在命令行运行编译命令：
+   ```bash
+   conda run -n docuforge python -m src.generate <image_path> --compile
+   ```
+   *此步骤自动拼接 `templates/preamble.tex` + `frames.tex`，调用本地 LaTeX 工具链编译，并自动生成每页 PNG 预览图到工作目录。*
+   - 如果编译失败，读取错误日志修正 `frames.tex` 后重新运行 `--compile`（最多 3 轮自愈）。
+
+4. **第四阶段：视觉检查 (Visual Check)**
+   编译成功后，Agent 必须对生成的 PNG 预览图逐页进行视觉检查：
+   - 用 `view_file` 查看 `tmp/work/<image_id>/slide-1.png`、`slide-2.png` 等；
+   - 检查项：**公式是否被截断/溢出边界**、**元素是否重叠**、**两列对齐是否协调**、**底部内容是否完整可见**；
+   - 若发现问题，修正 `frames.tex`（如调整 vspace、拆分内容、改用 columns 等），然后重新执行第三阶段；
+   - 确认无问题后，将 `outputs/manuscript_to_ppt/<image_id>_slides.pdf` 路径链接呈献给用户。
