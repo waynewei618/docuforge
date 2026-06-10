@@ -141,10 +141,14 @@ def _is_pure_latex_line(line: str) -> bool:
         return True
     if stripped.startswith("%"):
         return True
-    if stripped.startswith("\\") and not re.match(
-        r"\\(item\b|noindent\b|textbf\{|emph\{|textit\{|texttt\{)", stripped
-    ):
-        return True
+        
+    if stripped.startswith("\\"):
+        if re.match(r"^\s*\\(?:includegraphics|label|input|vspace|hspace|centering|bibliographystyle|bibliography|url|ref|cref)\b", stripped):
+            return True
+        if not _has_english_letters(_visible_words(stripped)):
+            return True
+        return False
+
     if stripped in {"{", "}", "\\\\"}:
         return True
     return False
@@ -230,6 +234,11 @@ def _paragraph_chunks(text: str, occupied: list[tuple[int, int]]) -> list[Chunk]
             flush(line_start)
         elif stripped == "":
             flush(line_start)
+        elif re.match(r"^\s*\\(?:boldparagraph|noindent|paragraph|item|subparagraph)\b", line):
+            flush(line_start)
+            if buffer_start is None:
+                buffer_start = line_start
+            buffer.append(line)
         else:
             if buffer_start is None:
                 buffer_start = line_start
@@ -524,10 +533,22 @@ def import_chunks_from_json(work: Path) -> int:
 
             # 只有当 translated 存在且不为空，且与原文不同时才进行替换
             if isinstance(translated, str) and translated.strip():
+                # 校验索引是否仍然匹配原文，若不匹配说明文件已被其他方式修改，跳过该 chunk 避免破坏文件
+                if original[start:end] != text_val:
+                    print(f"[warn] {rel_file} 中的 chunk (start={start}) 文本不匹配，跳过写回以免破坏文件。", flush=True)
+                    parts.append(original[end:cursor])
+                    parts.append(original[start:end])
+                    cursor = start
+                    continue
+
                 # 提取 text command 的内容规范化（如果是 text command）
                 kind = item.get("kind", "paragraph")
                 if kind in TEXT_COMMANDS:
                     translated = _unwrap_text_command(translated)
+
+                # 保持原文的末尾换行符，防止不同段落合并
+                if text_val.endswith("\n") and not translated.endswith("\n"):
+                    translated += "\n"
 
                 parts.append(original[end:cursor])
                 parts.append(translated)
