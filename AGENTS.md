@@ -14,7 +14,7 @@
 - `workflows/thesis_workspace` 用于辅助同等学力申硕论文写作，覆盖文献综述、开题报告、答辩材料和毕业论文等环节。
 - 目录约定：
   - `guidelines/` 存放学校官方格式、必修环节、开题系统和研究生系统说明，写作前优先读取这些约束。
-  - `references/papers/` 存放已收集论文 PDF 及中文翻译版，目前包括 NeRF、3DGS、HUGS、HUGSIM 等 3D 重建与自动驾驶仿真方向论文。
+  - `references/papers/` 本地存放已收集论文 PDF 及中文翻译版，例如 NeRF、3DGS、HUGS、HUGSIM 等 3D 重建与自动驾驶仿真方向论文；PDF 默认不提交到 Git。
   - `references/notes/` 存放后续文献阅读笔记、结构化摘录、关键段落和引用素材。
   - `literature_review/` 存放文献综述草稿源文件与最终输出。
   - `proposal/` 存放开题报告正文、开题答辩 slides 及导出结果。

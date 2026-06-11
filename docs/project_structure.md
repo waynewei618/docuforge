@@ -61,7 +61,7 @@ papers/auto_drive_3dgs/
 workflows/thesis_workspace/
   guidelines/                  # 学校官方格式、必修环节、系统说明
   references/
-    papers/                    # 论文 PDF 和中文翻译版
+    papers/                    # 本地论文 PDF 和中文翻译版（gitignored）
     notes/                     # 阅读笔记、结构化摘录、引用素材
   literature_review/
     src/
@@ -81,7 +81,7 @@ workflows/thesis_workspace/
   archive/                     # 历史开题、综述、选题介绍，仅作参考
 ```
 
-文献综述和开题报告先用 Markdown，方便 Codex CLI 等 Agent 交互、审阅和 diff；毕业论文正文优先使用 LaTeX；Word/Docx 主要作为学校模板套版和最终提交格式。`scripts/` 暂不保留，只有出现稳定重复的自动化需求时再新增。
+文献综述和开题报告先用 Markdown，方便 Codex CLI 等 Agent 交互、审阅和 diff；毕业论文正文优先使用 LaTeX；Word/Docx 主要作为学校模板套版和最终提交格式。`references/papers/` 下的 PDF 作为本地资料默认不提交，只保留目录占位；`scripts/` 暂不保留，只有出现稳定重复的自动化需求时再新增。
 
 ## 后续新增能力的推荐位置
 

@@ -20,6 +20,8 @@ outputs/
 
 # Local paper corpus and translated PDFs
 /papers/
+workflows/thesis_workspace/references/papers/*
+!workflows/thesis_workspace/references/papers/.gitkeep
 
 # LaTeX build byproducts that may appear outside tmp/
 *.aux
