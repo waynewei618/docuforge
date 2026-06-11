@@ -12,10 +12,14 @@ __pycache__/
 workflows/arxiv_translation/tmp/
 workflows/arxiv_translation/output/
 workflows/manuscript_to_ppt/tmp/
+workflows/thesis_workspace/literature_review/output/*
+!workflows/thesis_workspace/literature_review/output/.gitkeep
+workflows/thesis_workspace/proposal/output/*
+!workflows/thesis_workspace/proposal/output/.gitkeep
 outputs/
 
 # Local paper corpus and translated PDFs
-papers/
+/papers/
 
 # LaTeX build byproducts that may appear outside tmp/
 *.aux

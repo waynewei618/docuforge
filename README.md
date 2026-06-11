@@ -25,6 +25,7 @@ workflows/                              # 可复用工作流代码和模板
     templates/                          # 翻译规则和模型提示词
     tmp/                                # 调试缓存：inbox/work/<id>/outbox 等
   manuscript_to_ppt/                    # 根据手稿创建 PPT 的能力文件夹
+  thesis_workspace/                     # 文献综述、开题报告、毕业论文写作工作台
 papers/                                 # 当前样例/研究资料库
   auto_drive_3dgs/                      # 自动驾驶 3DGS 论文集合
 ```
@@ -93,6 +94,20 @@ conda run -n docuforge python -m src.generate <image_path> --compile
 ```
 
 生成的 PDF 与手稿图片副本将被自动重命名为包含手稿前 3 个 Frame 标题的内容相关文件名，保存在 `outputs/manuscript_to_ppt/` 下。
+
+## 论文写作工作台 (thesis_workspace)
+
+`workflows/thesis_workspace/` 用于同等学力申硕论文写作，覆盖文献综述、开题报告、答辩材料和毕业论文。默认用 Markdown 与 Codex CLI 等 Agent 协作撰写综述和开题初稿，毕业论文正文使用 LaTeX 管理章节、公式、图表、交叉引用和参考文献，最终再按学校模板导出 Word/PDF。
+
+关键源文件：
+
+```text
+workflows/thesis_workspace/literature_review/src/review.md
+workflows/thesis_workspace/literature_review/src/references.bib
+workflows/thesis_workspace/proposal/doc/proposal.md
+workflows/thesis_workspace/thesis/main.tex
+workflows/thesis_workspace/thesis/chapters/
+```
 
 ## 文档
 

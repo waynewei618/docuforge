@@ -9,6 +9,19 @@
   - 多输出格式：按任务需要输出 PDF、Markdown、LaTeX、PPT、Word/Docx、HTML 等格式。
   - 保留 Codex 交互式高质量处理流程，同时支持 DeepSeek API 等本地脚本自动化流程。
 
+## Thesis Workspace 论文写作工作台
+
+- `workflows/thesis_workspace` 用于辅助同等学力申硕论文写作，覆盖文献综述、开题报告、答辩材料和毕业论文等环节。
+- 目录约定：
+  - `guidelines/` 存放学校官方格式、必修环节、开题系统和研究生系统说明，写作前优先读取这些约束。
+  - `references/papers/` 存放已收集论文 PDF 及中文翻译版，目前包括 NeRF、3DGS、HUGS、HUGSIM 等 3D 重建与自动驾驶仿真方向论文。
+  - `references/notes/` 存放后续文献阅读笔记、结构化摘录、关键段落和引用素材。
+  - `literature_review/` 存放文献综述草稿源文件与最终输出。
+  - `proposal/` 存放开题报告正文、开题答辩 slides 及导出结果。
+  - `thesis/` 存放毕业论文章节、图表和学校论文模板。
+  - `archive/` 存放历史开题、综述和选题介绍材料，仅作参考，不作为主工作区。
+- 后续论文辅助撰写默认结合本项目已有能力：先按 `guidelines/` 提取学校格式与内容要求，再从 `references/` 和 `archive/` 组织材料；文献综述和开题报告先用 Markdown 起草，毕业论文正文优先使用 LaTeX，最终按学校要求导出 Word/PDF。
+
 ## 环境结构
 
 **结构原则**：LaTeX 工具链全机一处共享，全项目共用一个以项目命名的 conda 环境。

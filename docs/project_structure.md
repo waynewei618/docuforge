@@ -6,11 +6,14 @@
 
 ```text
 docs/                         # 面向使用者和维护者的说明文档
-workflows/                    # 可复用工作流代码、模板、运行缓存、最终产物
+workflows/                    # 可复用工作流代码、模板、工作区
+outputs/                      # 顶层最终产物目录（gitignored）
 papers/                       # 当前项目自带的论文资料集合
 ```
 
 每个 workflow 自包含：代码、模板、运行时缓存、最终产物都放在 `workflows/<name>/` 下，便于整体迁移/清理。
+
+论文写作类 workflow 不一定包含代码。`workflows/thesis_workspace/` 更接近可编辑工作区，主要存放学校规范、论文资料、Markdown/LaTeX 源稿和导出结果。
 
 ## 当前 arXiv 翻译工作流
 
@@ -51,6 +54,34 @@ papers/auto_drive_3dgs/
 ```
 
 这部分是当前自动驾驶 3DGS 论文集合，不是 DocuForge 的核心代码。后续推远程仓库时，可以根据仓库大小和版权风险决定是否保留 PDF 原文，或改成只保留索引和下载脚本。
+
+## 当前论文写作工作台
+
+```text
+workflows/thesis_workspace/
+  guidelines/                  # 学校官方格式、必修环节、系统说明
+  references/
+    papers/                    # 论文 PDF 和中文翻译版
+    notes/                     # 阅读笔记、结构化摘录、引用素材
+  literature_review/
+    src/
+      review.md                # 文献综述 Markdown 主源稿
+      references.bib           # 参考文献库
+    output/                    # 文献综述导出结果
+  proposal/
+    doc/
+      proposal.md              # 开题报告 Markdown 主源稿
+    slides/                    # 开题答辩 PPT/Beamer 源稿和素材
+    output/                    # 开题报告和 slides 导出结果
+  thesis/
+    main.tex                   # 毕业论文 LaTeX 主入口
+    chapters/                  # 毕业论文章节
+    figures/                   # 论文图表和数据
+    template/                  # 学校论文模板
+  archive/                     # 历史开题、综述、选题介绍，仅作参考
+```
+
+文献综述和开题报告先用 Markdown，方便 Codex CLI 等 Agent 交互、审阅和 diff；毕业论文正文优先使用 LaTeX；Word/Docx 主要作为学校模板套版和最终提交格式。`scripts/` 暂不保留，只有出现稳定重复的自动化需求时再新增。
 
 ## 后续新增能力的推荐位置
 
