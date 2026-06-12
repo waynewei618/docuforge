@@ -27,6 +27,33 @@ TEXT_COMMANDS = {
     "caption",
 }
 
+SHORT_TEXT_COMMAND_TRANSLATIONS = {
+    "abstract": "摘要",
+    "introduction": "引言",
+    "related work": "相关工作",
+    "method": "方法",
+    "methodology": "方法",
+    "approach": "方法",
+    "experiments": "实验",
+    "experimental results": "实验结果",
+    "results": "结果",
+    "discussion": "讨论",
+    "conclusion": "结论",
+    "conclusions": "结论",
+    "limitations": "局限性",
+    "acknowledgments": "致谢",
+    "acknowledgements": "致谢",
+    "appendix": "附录",
+}
+
+META_RESPONSE_PATTERNS = [
+    r"请提供.*(?:英文|LaTeX|片段)",
+    r"我将按照.*翻译",
+    r"以下是.*翻译",
+    r"作为(?:一个)?AI",
+    r"我无法(?:直接)?翻译",
+]
+
 PROTECTED_ENVS = {
     "align", "align*", "acks", "algorithm", "algorithmic", "array", "bmatrix",
     "cases", "CCSXML", "displaymath", "equation", "equation*", "gather",
@@ -83,6 +110,23 @@ def _has_english_letters(text: str) -> bool:
     return re.search(r"[A-Za-z]{3,}", text) is not None
 
 
+def _latex_brace_delta(text: str) -> int:
+    delta = 0
+    escaped = False
+    for char in text:
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\":
+            escaped = True
+            continue
+        if char == "{":
+            delta += 1
+        elif char == "}":
+            delta -= 1
+    return delta
+
+
 def _visible_words(text: str) -> str:
     text = re.sub(r"\\[A-Za-z@]+\*?", " ", text)
     text = re.sub(r"[$^_{}[\]~&%#]", " ", text)
@@ -130,6 +174,19 @@ def _unwrap_text_command(text: str) -> str:
     return stripped[start:end].strip()
 
 
+def _short_text_command_translation(text: str) -> str | None:
+    normalized = re.sub(r"\s+", " ", _strip_code_fence(text)).strip().strip(".:：")
+    return SHORT_TEXT_COMMAND_TRANSLATIONS.get(normalized.lower())
+
+
+def _looks_like_meta_response(source: str, output: str) -> bool:
+    if not output.strip():
+        return False
+    if any(re.search(pattern, source) for pattern in META_RESPONSE_PATTERNS):
+        return False
+    return any(re.search(pattern, output) is not None for pattern in META_RESPONSE_PATTERNS)
+
+
 def _env_name_from_line(line: str, command: str) -> str | None:
     match = re.search(rf"\\{command}\{{([^}}]+)\}}", line)
     return match.group(1) if match else None
@@ -141,9 +198,16 @@ def _is_pure_latex_line(line: str) -> bool:
         return True
     if stripped.startswith("%"):
         return True
-        
+
+    if re.match(r"^\\(?:begin|end)\{[^}]+\}", stripped):
+        return True
+
     if stripped.startswith("\\"):
-        if re.match(r"^\s*\\(?:includegraphics|label|input|vspace|hspace|centering|bibliographystyle|bibliography|url)\b", stripped):
+        pure_commands = (
+            r"author|includegraphics|label|input|vspace|hspace|centering|thispagestyle|"
+            r"pagestyle|maketitle|bibliographystyle|bibliography|url"
+        )
+        if re.match(rf"^\s*\\(?:{pure_commands})\b", stripped):
             return True
         if not _has_english_letters(_visible_words(stripped)):
             return True
@@ -382,7 +446,30 @@ def _translate_file(
         output = backend.translate(system_prompt, chunk.text)
         if chunk.kind in TEXT_COMMANDS:
             output = _unwrap_text_command(output)
+        if _looks_like_meta_response(chunk.text, output):
+            fallback = _short_text_command_translation(chunk.text) if chunk.kind in TEXT_COMMANDS else None
+            if fallback is None:
+                print(
+                    f"[warn] {_rel(path, project_root)} chunk {index}: 后端返回了非译文元回答，保留原文",
+                    flush=True,
+                )
+                output = chunk.text
+            else:
+                print(
+                    f"[warn] {_rel(path, project_root)} chunk {index}: 后端返回了非译文元回答，使用短标题兜底译文",
+                    flush=True,
+                )
+                output = fallback
         if not output:
+            output = chunk.text
+        if chunk.text.endswith("\n") and not output.endswith("\n"):
+            output += "\n"
+        if _latex_brace_delta(output) != _latex_brace_delta(chunk.text):
+            print(
+                f"[warn] {_rel(path, project_root)} chunk {index}: "
+                "译文改变了 LaTeX 花括号平衡，保留原文",
+                flush=True,
+            )
             output = chunk.text
         translated_parts.append(output)
         cursor = chunk.end
@@ -558,6 +645,21 @@ def import_chunks_from_json(work: Path) -> int:
                 kind = item.get("kind", "paragraph")
                 if kind in TEXT_COMMANDS:
                     translated = _unwrap_text_command(translated)
+                if _looks_like_meta_response(text_val, translated):
+                    fallback = _short_text_command_translation(text_val) if kind in TEXT_COMMANDS else None
+                    if fallback is None:
+                        print(f"[warn] {rel_file} 中的 chunk (start={start}) 是非译文元回答，跳过写回。", flush=True)
+                        parts.append(original[end:cursor])
+                        parts.append(original[start:end])
+                        cursor = start
+                        continue
+                    translated = fallback
+                if _latex_brace_delta(translated) != _latex_brace_delta(text_val):
+                    print(f"[warn] {rel_file} 中的 chunk (start={start}) 改变了 LaTeX 花括号平衡，跳过写回。", flush=True)
+                    parts.append(original[end:cursor])
+                    parts.append(original[start:end])
+                    cursor = start
+                    continue
 
                 # 保持原文的末尾换行符，防止不同段落合并
                 if text_val.endswith("\n") and not translated.endswith("\n"):
@@ -583,5 +685,3 @@ def import_chunks_from_json(work: Path) -> int:
             updated_files += 1
 
     return updated_files
-
-

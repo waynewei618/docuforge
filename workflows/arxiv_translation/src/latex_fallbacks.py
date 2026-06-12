@@ -111,6 +111,25 @@ def normalize_graphics_px_units(tex: str) -> str:
     return re.sub(r"([0-9]+)px", r"\1pt", tex)
 
 
+def normalize_run_in_heading_macros(tex: str) -> str:
+    """将常见 run-in 小标题宏改成中文更自然的独占行标题。
+
+    英文论文常用 `\boldparagraph{Title} text...` 节省空间；中文译文中继续
+    run-in 会让相邻语义块粘成一段，阅读上很别扭。
+    """
+    block_boldparagraph = (
+        r"\newcommand{\boldparagraph}[1]{"
+        r"\par\vspace{0.2cm}\noindent{\bf #1:}\par\nobreak\noindent}"
+    )
+    patterns = [
+        r"(?m)^(?!\s*%)\\newcommand\s*\{\\boldparagraph\}\s*\[1\]\s*\{[^\n]*\}\s*$",
+        r"(?m)^(?!\s*%)\\renewcommand\s*\{\\boldparagraph\}\s*\[1\]\s*\{[^\n]*\}\s*$",
+    ]
+    for pattern in patterns:
+        tex = re.sub(pattern, lambda _match: block_boldparagraph, tex)
+    return tex
+
+
 def normalize_xelatex_encoding(tex: str) -> str:
     tex = re.sub(
         r"(?m)^(?!\s*%)\\usepackage\[[^]]*\]\{inputenc\}\s*(%.*)?$",
@@ -127,39 +146,91 @@ def normalize_xelatex_encoding(tex: str) -> str:
     return tex
 
 
-def inject_chinese_preamble(tex: str) -> str:
-    if r"\usepackage" in tex and "ctex" in tex:
-        return tex
-    is_acmart = re.search(r"\\documentclass(?:\[[^\]]*\])?\{acmart\}", tex) is not None
-    cjk_lines = []
-    if not is_acmart:
-        cjk_lines.append(r"\usepackage[UTF8,fontset=none]{ctex}")
-    cjk_lines.extend([
-        r"\usepackage{fontspec}",
-        r"\usepackage{xeCJK}",
-        r"\setCJKmainfont{Noto Serif CJK SC}",
-        r"\setCJKsansfont{Noto Sans CJK SC}",
-        r"\setCJKmonofont{Noto Sans Mono CJK SC}",
-        r"\setlength{\columnsep}{0.30in}",
-        r"\setlength{\columnseprule}{0.35pt}",
-    ])
-    cjk = "\n".join(cjk_lines)
-    # 注入顺序：\documentclass → PDFTEX_COMPAT_BLOCK（兜底 \pdfminorversion 等）→ 中文 preamble
-    inject = "\n" + PDFTEX_COMPAT_BLOCK + cjk
-    pattern = re.compile(r"^(?!\s*%)(.*\\documentclass(?:\[[^\]]*\])?\{[^}]+\}.*)$", re.MULTILINE)
-    return pattern.sub(
-        lambda match: match.group(1) + inject,
-        normalize_xelatex_encoding(normalize_optional_packages(tex)),
-        count=1,
+def _has_usepackage(tex: str, package: str) -> bool:
+    pattern = re.compile(
+        r"(?m)^(?!\s*%)\\usepackage(?:\[[^]]*\])?\{([^}]+)\}\s*(?:%.*)?$"
     )
+    return any(
+        package in {item.strip() for item in match.group(1).split(",")}
+        for match in pattern.finditer(tex)
+    )
+
+
+def _has_columnsep_setting(tex: str) -> bool:
+    patterns = [
+        r"(?m)^(?!\s*%)\s*\\(?:setlength|addtolength)\s*\{\s*\\columnsep\s*\}",
+        r"(?m)^(?!\s*%)\s*\\columnsep\s*=",
+    ]
+    return any(re.search(pattern, tex) is not None for pattern in patterns)
+
+
+def _has_line_spacing_setting(tex: str) -> bool:
+    patterns = [
+        r"(?m)^(?!\s*%)\s*\\linespread\s*\{",
+        r"(?m)^(?!\s*%)\s*\\(?:renewcommand|def)\s*\{?\\baselinestretch\}?",
+        r"(?m)^(?!\s*%)\s*\\setstretch\s*\{",
+        r"(?m)^(?!\s*%)\s*\\(?:onehalfspacing|doublespacing|singlespacing)\b",
+    ]
+    return any(re.search(pattern, tex) is not None for pattern in patterns)
+
+
+def inject_chinese_preamble(tex: str) -> str:
+    tex = normalize_xelatex_encoding(normalize_optional_packages(tex))
+
+    cjk_lines = []
+    if not _has_usepackage(tex, "ctex") and not _has_usepackage(tex, "xeCJK"):
+        cjk_lines.extend([
+            r"\usepackage{fontspec}",
+            r"\usepackage{xeCJK}",
+        ])
+    if not re.search(r"(?m)^(?!\s*%)\\setCJKmainfont\b", tex):
+        cjk_lines.extend([
+            r"\setCJKmainfont{FandolSong-Regular.otf}[BoldFont=FandolSong-Bold.otf,ItalicFont=FandolKai-Regular.otf]",
+            r"\setCJKsansfont{FandolSong-Regular.otf}[BoldFont=FandolSong-Bold.otf]",
+            r"\setCJKmonofont{FandolSong-Regular.otf}",
+        ])
+    if not _has_usepackage(tex, "newunicodechar"):
+        cjk_lines.extend([
+            r"\IfFileExists{newunicodechar.sty}{%",
+            r"\usepackage{newunicodechar}",
+            r"\newunicodechar{α}{\ensuremath{\alpha}}",
+            r"\newunicodechar{β}{\ensuremath{\beta}}",
+            r"\newunicodechar{γ}{\ensuremath{\gamma}}",
+            r"\newunicodechar{δ}{\ensuremath{\delta}}",
+            r"\newunicodechar{λ}{\ensuremath{\lambda}}",
+            r"\newunicodechar{μ}{\ensuremath{\mu}}",
+            r"\newunicodechar{π}{\ensuremath{\pi}}",
+            r"\newunicodechar{σ}{\ensuremath{\sigma}}",
+            r"\newunicodechar{τ}{\ensuremath{\tau}}",
+            r"\newunicodechar{Σ}{\ensuremath{\Sigma}}",
+            r"}{}",
+        ])
+    if not _has_columnsep_setting(tex):
+        # 中文重排后单行更容易贴近栏间空白。适当加宽栏距可避免 PDF 阅读器
+        # 将左右两栏正文合并为同一个可选中文本块。
+        cjk_lines.append(r"\setlength{\columnsep}{0.45in}")
+    if not _has_line_spacing_setting(tex):
+        cjk_lines.append(r"\linespread{1.08}")
+
+    cjk = "\n".join(cjk_lines)
+    # 注入顺序：\documentclass → PDFTEX_COMPAT_BLOCK（兜底 \pdfminorversion 等）→ 中文 preamble。
+    # 原论文模板默认不注入 ctex；ctex 会改写部分排版参数，并可能破坏双栏 PDF 的文本选择分块。
+    inject = "\n" + PDFTEX_COMPAT_BLOCK + cjk
+    pattern = re.compile(
+        r"^(?!\s*%)(.*\\documentclass(?:\[[^\]]*\])?\{[^}]+\}.*)$",
+        re.MULTILINE,
+    )
+    return pattern.sub(lambda match: match.group(1) + inject, tex, count=1)
 
 
 def normalize_optional_packages_in_dir(tex_root: Path) -> int:
     updated = 0
     for path in sorted(tex_root.rglob("*.tex")):
         text = path.read_text(encoding="utf-8", errors="replace")
-        normalized = normalize_graphics_px_units(
-            normalize_xelatex_encoding(normalize_optional_packages(text))
+        normalized = normalize_run_in_heading_macros(
+            normalize_graphics_px_units(
+                normalize_xelatex_encoding(normalize_optional_packages(text))
+            )
         )
         if normalized != text:
             path.write_text(normalized, encoding="utf-8")
