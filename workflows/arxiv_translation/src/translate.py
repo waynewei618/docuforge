@@ -27,24 +27,29 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--force", action="store_true", help="即使产物已存在也强制重做")
     p.add_argument("--prepare", action="store_true", help="【Agent 异步协作模式】仅解包 LaTeX 并导出待翻译的 JSON 文本")
     p.add_argument("--compile", action="store_true", help="【Agent 异步协作模式】仅读取已翻译好的 JSON 写回并编译 PDF")
+    p.add_argument(
+        "--backend", choices=["agy", "deepseek"], default="agy",
+        help="翻译后端：agy（默认，调用 agy -p 一键整体翻译）或 deepseek（使用 DeepSeek API）",
+    )
 
     return p
-
-
+ 
+ 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
-
+ 
     if args.prepare and args.compile:
         print("[error] 参数冲突：--prepare 与 --compile 不能同时使用", file=sys.stderr)
         return 1
-
+ 
     opts = PipelineOptions(
         output_dir=Path(args.output_dir),
         force=args.force,
         prepare_only=args.prepare,
         compile_only=args.compile,
+        backend=args.backend,
     )
-
+ 
     result = run_pipeline(args.input, opts)
 
     english_pdf = str(result.english_pdf) if result.english_pdf else None

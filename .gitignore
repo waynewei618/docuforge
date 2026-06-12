@@ -40,3 +40,7 @@ workflows/thesis_workspace/references/papers/*
 # OS/editor noise
 .DS_Store
 Thumbs.db
+
+# Scratch files
+scratch/
+

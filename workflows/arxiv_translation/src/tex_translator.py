@@ -143,7 +143,7 @@ def _is_pure_latex_line(line: str) -> bool:
         return True
         
     if stripped.startswith("\\"):
-        if re.match(r"^\s*\\(?:includegraphics|label|input|vspace|hspace|centering|bibliographystyle|bibliography|url|ref|cref)\b", stripped):
+        if re.match(r"^\s*\\(?:includegraphics|label|input|vspace|hspace|centering|bibliographystyle|bibliography|url)\b", stripped):
             return True
         if not _has_english_letters(_visible_words(stripped)):
             return True
@@ -458,16 +458,20 @@ def export_chunks_to_json(work: Path, opts: TranslateOptions, project_root: Path
     for path in files:
         original = path.read_text(encoding="utf-8", errors="replace")
         chunks = collect_chunks(original)
+        rel_file = _rel(path, work / "zh")
 
         for index, chunk in enumerate(chunks, start=1):
             if _should_translate(chunk.text, opts.force):
                 all_chunks_data.append({
-                    "file": _rel(path, work / "zh"),  # 相对 zh 目录的路径
+                    "chunk_id": f"{rel_file}_{index}",
+                    "file": rel_file,  # 相对 zh 目录的路径
                     "index": index,
                     "start": chunk.start,
                     "end": chunk.end,
                     "kind": chunk.kind,
+                    "source_sha256": _sha256(chunk.text),
                     "text": chunk.text,
+                    "status": "pending",
                     "translated": None
                 })
 
@@ -482,10 +486,8 @@ def import_chunks_from_json(work: Path) -> int:
     """读取已翻译的 chunks 并逆向替换写入 zh/ 下对应的 TeX 文件。"""
     in_path = work / "notes" / "chunks_translated.json"
     if not in_path.exists():
-        in_path = work / "notes" / "chunks_to_translate.json"
-        if not in_path.exists():
-            print("[warn] 未找到 chunks_translated.json 或 chunks_to_translate.json，跳过导入", flush=True)
-            return 0
+        print(f"[warn] 未找到 chunks_translated.json，跳过导入", flush=True)
+        return 0
 
     try:
         data = json.loads(in_path.read_text(encoding="utf-8"))
@@ -530,12 +532,23 @@ def import_chunks_from_json(work: Path) -> int:
             start = item["start"]
             end = item["end"]
             text_val = item.get("text", "")
+            source_sha256 = item.get("source_sha256", "")
+            status = item.get("status", "")
 
-            # 只有当 translated 存在且不为空，且与原文不同时才进行替换
-            if isinstance(translated, str) and translated.strip():
-                # 校验索引是否仍然匹配原文，若不匹配说明文件已被其他方式修改，跳过该 chunk 避免破坏文件
+            # 仅当 status 为 translated 且 translated 存在且非空时替换
+            if status == "translated" and isinstance(translated, str) and translated.strip():
+                # 校验 1: 索引段的原文内容是否匹配
                 if original[start:end] != text_val:
                     print(f"[warn] {rel_file} 中的 chunk (start={start}) 文本不匹配，跳过写回以免破坏文件。", flush=True)
+                    parts.append(original[end:cursor])
+                    parts.append(original[start:end])
+                    cursor = start
+                    continue
+
+                # 校验 2: 校验哈希值是否匹配
+                current_sha256 = _sha256(original[start:end])
+                if current_sha256 != source_sha256:
+                    print(f"[warn] {rel_file} 中的 chunk (start={start}) SHA256 哈希值不匹配 (expected={source_sha256}, got={current_sha256})，跳过写回以免破坏文件。", flush=True)
                     parts.append(original[end:cursor])
                     parts.append(original[start:end])
                     cursor = start
@@ -570,4 +583,5 @@ def import_chunks_from_json(work: Path) -> int:
             updated_files += 1
 
     return updated_files
+
 

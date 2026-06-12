@@ -100,7 +100,7 @@ def normalize_optional_packages(tex: str) -> str:
     )
     tex = re.sub(
         r"(?m)^(?!\s*%)\\usepackage\{bbm\}\s*$",
-        lambda _m: r"% \usepackage{bbm}\n\providecommand{\mathbbm}[1]{\mathbb{#1}}",
+        lambda _m: "% \\usepackage{bbm}\n\\providecommand{\\mathbbm}[1]{\\mathbb{#1}}",
         tex,
     )
     return tex
